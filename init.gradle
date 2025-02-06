@@ -1,0 +1,23 @@
+gradle.beforeProject { proj ->
+    def ghidraInstallDir = '/opt/ghidra_11.2.1'
+    
+    if (System.env.GHIDRA_INSTALL_DIR) {
+        ghidraInstallDir = System.env.GHIDRA_INSTALL_DIR
+    } else if (proj.hasProperty('ghidra.dir')) {
+        ghidraInstallDir = proj.property('ghidra.dir')
+    } else if (new File('/opt/ghidra_11.2.1').exists()) {
+        ghidraInstallDir = '/opt/ghidra_11.2.1'
+    } else {
+        throw new GradleException("""
+            Ghidra installation directory not found!
+            Please set GHIDRA_INSTALL_DIR environment variable or ghidra.dir project property
+            Example: export GHIDRA_INSTALL_DIR=/path/to/ghidra
+            """.stripIndent())
+    }
+    
+    System.setProperty('GHIDRA_INSTALL_DIR', ghidraInstallDir)
+    proj.ext.GHIDRA_INSTALL_DIR = ghidraInstallDir
+    
+    println "Initializing Ghidra build environment..."
+    println "GHIDRA_INSTALL_DIR = ${ghidraInstallDir}"
+}

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='ISO-8859-1' ?>
+<!-- TOC for Azure AI Assistant -->
+<tocroot>
+    <tocref id="Ghidra Functionality">
+        <tocdef id="azure_help" text="Azure AI Assistant" target="help/topics/azure/help.html">
+            <tocdef id="azure_help_usage" text="Usage" target="help/topics/azure/help.html#Usage" />
+            <tocdef id="azure_help_analysis" text="Analysis Features" target="help/topics/azure/help.html#Analysis_Tab" />
+        </tocdef>
+    </tocref>
+</tocroot>

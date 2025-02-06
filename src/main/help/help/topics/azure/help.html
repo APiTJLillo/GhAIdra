@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='ISO-8859-1' ?>
+<!doctype html public "-//W3C//DTD HTML 4.0 Frameset//EN">
+<html>
+<head>
+<meta name="generator" content="JavaHelp">
+<title>Azure AI Assistant</title>
+<link rel="stylesheet" type="text/css" href="help/shared/DefaultStyle.css">
+</head>
+<body bgcolor="#ffffff">
+<h1>Azure AI Assistant</h1>
+<h2>Overview</h2>
+<p>The Azure AI Assistant is a Ghidra plugin that uses Azure OpenAI to analyze and improve function understanding.</p>
+
+<h2>Features</h2>
+<ul>
+    <li>Find best function names based on code analysis</li>
+    <li>Get detailed explanations of function behavior</li>
+    <li>Get suggestions for better variable names</li>
+</ul>
+
+<h2>Setup</h2>
+<p>Before using the plugin, set these environment variables:</p>
+<ul>
+    <li><code>AZURE_OPENAI_KEY</code> - Your Azure OpenAI API key</li>
+    <li><code>AZURE_OPENAI_ENDPOINT</code> - Your Azure OpenAI endpoint URL</li>
+</ul>
+
+<h2><a name="Usage">Usage</a></h2>
+<ol>
+    <li>Open a program in Ghidra</li>
+    <li>Go to Window > Azure AI Assistant</li>
+    <li>Position your cursor within a function you want to analyze</li>
+    <li>Use the buttons in the Analysis tab:
+        <ul>
+            <li><b>Find Best Function Name</b> - Get a suggested name that better describes the function's purpose</li>
+            <li><b>Explain Function</b> - Get a detailed analysis of what the function does</li>
+            <li><b>Rename Variables</b> - Get suggestions for clearer variable names</li>
+        </ul>
+    </li>
+    <li>View results in the output area below the buttons</li>
+</ol>
+
+<h2><a name="Analysis_Tab">Analysis Tab</a></h2>
+<p>The Analysis tab contains three main functions:</p>
+<dl>
+    <dt><b>Find Best Function Name</b></dt>
+    <dd>Analyzes the current function and suggests a more descriptive name based on its behavior and purpose.</dd>
+    
+    <dt><b>Explain Function</b></dt>
+    <dd>Provides a detailed analysis of the function including its purpose, algorithms used, and potential security implications.</dd>
+    
+    <dt><b>Rename Variables</b></dt>
+    <dd>Suggests better names for variables based on how they are used in the code.</dd>
+</dl>
+
+<h2>Output Area</h2>
+<p>The output area at the bottom of the window shows the results of AI analysis. For the Explain Function feature, the analysis is also added as a comment to the function in the listing.</p>
+</body>
+</html>

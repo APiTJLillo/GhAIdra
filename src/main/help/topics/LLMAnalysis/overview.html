@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LLM Analysis Plugin</title>
+    <link rel="stylesheet" type="text/css" href="../../shared/DefaultStyle.css">
+</head>
+<body>
+    <h1>LLM Analysis Plugin</h1>
+
+    <h2>Overview</h2>
+    <p>
+        The LLM Analysis Plugin integrates Large Language Models into Ghidra for enhanced code analysis.
+        It helps reverse engineers by providing automated analysis and suggestions for function renaming.
+    </p>
+
+    <h2>Features</h2>
+    <ul>
+        <li><b>Function Analysis</b> - Get detailed explanations of function behavior</li>
+        <li><b>Smart Renaming</b> - Get meaningful suggestions for function and variable names</li>
+        <li><b>Recursive Analysis</b> - Analyze nested function calls for deeper understanding</li>
+        <li><b>Multiple Models</b> - Configure different models for various analysis tasks</li>
+    </ul>
+
+    <h2>Configuration</h2>
+    <p>
+        To use the plugin, you need to configure your LLM provider settings. For Azure OpenAI:
+    </p>
+    <ol>
+        <li>Click the "Configure LLM" button</li>
+        <li>Enter your Azure OpenAI endpoint URL</li>
+        <li>Enter your API key</li>
+        <li>Select preferred models for analysis and renaming tasks</li>
+    </ol>
+
+    <h2>Usage</h2>
+    <h3>Function Analysis</h3>
+    <p>
+        To analyze a function:
+        <ol>
+            <li>Select a function in the listing view</li>
+            <li>Click "Analyze Function" for a single function analysis</li>
+            <li>Enable "Recursive Analysis" to include called functions</li>
+        </ol>
+    </p>
+
+    <h3>Renaming Suggestions</h3>
+    <p>
+        To get renaming suggestions:
+        <ol>
+            <li>Select a function in the listing view</li>
+            <li>Click "Rename Function" for function name suggestions only</li>
+            <li>Click "Rename Function & Variables" for comprehensive renaming</li>
+            <li>Enable "Recursive Renaming" to include nested functions</li>
+        </ol>
+    </p>
+
+    <h2>Model Selection</h2>
+    <p>
+        Different models are optimized for different tasks:
+    </p>
+    <ul>
+        <li><b>Analysis Model</b> - Used for detailed function analysis (default: GPT-4)</li>
+        <li><b>Renaming Model</b> - Used for suggesting names (default: GPT-3.5 Turbo)</li>
+        <li><b>Recursive Model</b> - Used for nested function analysis (default: GPT-3.5 Turbo)</li>
+    </ul>
+
+    <h2>Tips</h2>
+    <ul>
+        <li>Use recursive analysis for complex functions with multiple nested calls</li>
+        <li>GPT-4 provides more detailed analysis but is slower</li>
+        <li>GPT-3.5 Turbo is faster and suitable for quick renaming tasks</li>
+        <li>Consider using different models for different phases of your analysis</li>
+    </ul>
+
+    <div class="note">
+        <p><strong>Note:</strong> Analysis performance depends on the model used and the complexity of the code.</p>
+    </div>
+
+    <div class="warning">
+        <p><strong>Warning:</strong> Always verify suggested names and analysis results before applying them.</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,120 @@
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+def ghidraInstallDir = System.env.GHIDRA_INSTALL_DIR ?: '/opt/ghidra_11.2.1'
+project.ext.ghidraInstallDir = ghidraInstallDir
+
+if (System.env.GHIDRA_INSTALL_DIR) {
+    apply from: new File(System.env.GHIDRA_INSTALL_DIR).canonicalPath + "/support/buildExtension.gradle"
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    // HTTP client
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    // JSON handling
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
+
+    // Logging
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'org.slf4j:slf4j-simple:1.7.36'
+
+    // Ghidra dependencies - Framework
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Project/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Generic/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Utility/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Graph/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/DB/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/SoftwareModeling/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/FileSystem/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Docking/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: '*.jar')
+
+    // Ghidra dependencies - Features
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Base/lib", include: '*.jar')
+    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Decompiler/lib", include: '*.jar')
+}
+
+// Plugin metadata
+rootProject.ext {
+    RELEASE_NAME = 'LLMPlugin'
+    GROUP_NAME = 'LLMPlugin'
+}
+
+// Source sets with help support
+sourceSets {
+    main {
+        java {
+            srcDirs 'src/main/java'
+        }
+        resources {
+            srcDirs 'src/main/resources'
+            if (file("src/main/help").exists()) {
+                srcDirs 'src/main/help'
+            }
+        }
+    }
+}
+
+// Help directory processing
+processResources {
+    from ('src/main/help') {
+        into 'help'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Clean task
+clean.doFirst {
+    delete "$projectDir/lib"
+    delete "$projectDir/build"
+    delete "$projectDir/dist"
+}
+
+// Build properties for manifest
+def buildDate = new Date()
+def buildYear = buildDate.format('yyyy')
+
+jar {
+    manifest {
+        attributes(
+            'Built-By': System.getProperty('user.name'),
+            'Build-Date': buildDate,
+            'Build-Year': buildYear,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+// Ensure Ghidra install directory exists
+task checkGhidraInstallDir {
+    doFirst {
+        def dir = new File(ghidraInstallDir)
+        if (!dir.exists()) {
+            throw new GradleException("Ghidra installation directory does not exist: ${dir.absolutePath}")
+        }
+    }
+}
+
+compileJava.dependsOn checkGhidraInstallDir
+
+// Task to create a distribution zip
+task distributeExtension {
+    group "Ghidra"
+    apply from: "${ghidraInstallDir}/support/buildExtension.gradle"
+    dependsOn ':buildExtension'
+}

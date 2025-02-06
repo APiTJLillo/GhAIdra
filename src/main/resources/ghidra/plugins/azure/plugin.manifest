@@ -1,0 +1,10 @@
+name=GhidraAzurePlugin
+description=Azure OpenAI integration for Ghidra function analysis
+author=Azure AI Plugin
+version=11.2.1
+date=2025
+category=Analysis
+provider=GhidraAzurePlugin
+entry=ghidra.plugins.azure.GhidraAzurePlugin
+priority=normal
+permissions=ghidra.framework.plugintool.util.PluginPackage

@@ -1,0 +1,14 @@
+rootProject.name = 'ghidra-azure-plugin'
+
+def determineGhidraDir() {
+    def props = new Properties()
+    def localPropsFile = new File(rootDir, 'local.properties')
+    if (localPropsFile.exists()) {
+        localPropsFile.withInputStream { props.load(it) }
+    }
+    return props.getProperty('GHIDRA_INSTALL_DIR') ?: '/opt/ghidra_11.2.1'
+}
+
+// Set the Ghidra installation directory as a Gradle property
+gradle.ext.ghidra_install_dir = determineGhidraDir()
+println "Ghidra installation directory set to: ${gradle.ext.ghidra_install_dir}"

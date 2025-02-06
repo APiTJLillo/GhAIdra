@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Extension-Name: LLMPlugin
+Extension-Version: 1.0.0
+Ghidra-Version: 11.2.1
+Author: Your Name
+Description: An extension for LLM-based code analysis and renaming in Ghidra.

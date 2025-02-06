@@ -1,0 +1,25 @@
+Manifest-Version: 1.0
+Created-By: Azure AI Plugin
+Build-Date: 2025-02-03
+Permissions: ALL-PERMISSIONS
+Name: Azure AI Plugin
+Specification-Title: GhidraAzurePlugin
+Specification-Version: 1.0.0
+Specification-Vendor: Azure AI Plugin
+Implementation-Title: ghidra.plugins.azure.GhidraAzurePlugin
+Implementation-Version: 1.0.0
+Implementation-Vendor: Azure AI Plugin
+Class-Path: lib/azure-ai-openai-1.0.0-beta.3.jar 
+ lib/azure-core-1.45.0.jar 
+ lib/azure-core-http-netty-1.13.10.jar 
+ lib/azure-identity-1.14.2.jar 
+ lib/slf4j-simple-1.7.9.jar
+Main-Class: ghidra.plugins.azure.GhidraAzurePlugin
+Plugin-Class: ghidra.plugins.azure.GhidraAzurePlugin
+Plugin-Version: 1.0.0
+Plugin-Description: Azure OpenAI integration for Ghidra
+Plugin-Category: Analysis
+Plugin-Name: Azure AI Plugin
+Plugin-Dependencies: Framework;Base
+Plugin-Priority: normal
+Plugin-Status: RELEASED
