@@ -93,13 +93,6 @@ If you get authorization errors ("401: Unauthorized"):
 3. Check that your model deployment is active and accessible
 4. Try the endpoint URL in Postman to verify it works
 
-### Plugin Settings
-
-The plugin stores its configuration in:
-- `~/.config/Code - Insiders/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-
-You can manually edit this file if needed, but it's recommended to use the Configure LLM dialog.
-
 ## License
 
 Apache License 2.0
