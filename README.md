@@ -7,7 +7,7 @@ A Ghidra plugin that uses Azure OpenAI services to analyze and improve function 
 - Function Analysis: Get detailed explanations of function behavior and purpose
 - Smart Renaming: Get AI-powered suggestions for function and variable names
 - Multiple Model Support: 
-  - Azure OpenAI (GPT-4, GPT-3.5)
+  - Azure OpenAI
   - Azure DeepSeek
 - Recursive Analysis: Option to analyze called functions recursively
 - Configurable Settings: Temperature, max tokens, and model selection
@@ -48,7 +48,7 @@ This will create: `dist/ghidra_11.2.1_PUBLIC_YYYYMMDD_ghidra-azure-plugin.zip`
    
    For both providers:
    - Endpoint URL format: `https://{resource-name}.openai.azure.com/openai/deployments/{deployment-name}`
-     - Example: `https://api-text-davinci-003.openai.azure.com/openai/deployments/APi-gpt-4o`
+     - Example: `https://your-resource.openai.azure.com/openai/deployments/gpt-4o`
      - Do NOT include `/chat/completions` or `?api-version=` parameters
    - API Key: Your Azure OpenAI API key (header should be "api-key")
    - Configure model names and other settings in the dialog
@@ -87,7 +87,7 @@ GHIDRA_INSTALL_DIR=/path/to/ghidra_11.2.1 ./gradlew distributeExtension
 If you get authorization errors ("401: Unauthorized"):
 1. Verify your Azure OpenAI endpoint URL:
    - Must include resource name and deployment name
-   - Example: `https://api-text-davinci-003.openai.azure.com/openai/deployments/APi-gpt-4o`
+   - Example: `https://your-resource.openai.azure.com/openai/deployments/APi-gpt-4o`
    - The plugin will automatically handle adding chat/completions and api-version
 2. Make sure you're using the correct API key from Azure
 3. Check that your model deployment is active and accessible
