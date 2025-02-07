@@ -160,13 +160,14 @@ public class LLMAnalysisManager {
                             String oldName = symbol.getName();
                             if (variableNames.containsKey(oldName) && !processedVars.contains(oldName)) {
                                 String newName = variableNames.get(oldName);
+                                int transactionId = currentProgram.startTransaction("Rename Variable");
                                 try {
-                                    int transactionId = currentProgram.startTransaction("Rename Variable");
                                     HighFunctionDBUtil.updateDBVariable(symbol, newName, null, SourceType.ANALYSIS);
                                     currentProgram.endTransaction(transactionId, true);
                                     processedVars.add(oldName);
                                     Msg.info(this, String.format("Renamed %s to %s", oldName, newName));
-                                } catch (DuplicateNameException | InvalidInputException e) {
+                                } catch (Exception e) {
+                                    currentProgram.endTransaction(transactionId, false);
                                     Msg.error(this, String.format("Failed to rename %s: %s", oldName, e.getMessage()));
                                 }
                             }
