@@ -1,1 +1,8 @@
 Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
+Get variable renaming working
+Get recursion working
+ - Recursively build a list of all functions
+ - Ensure we ignore functions already in the list
+ - Analyze/rename functions at the deepest level first
+ - Allow for different models to be used at shallower levels if we want smarter models on more important functions
+ - Similar to the python script, rename all functions with the same instructions as the current one

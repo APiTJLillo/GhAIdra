@@ -6,7 +6,14 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.listing.Variable;
 import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.pcode.HighFunctionDBUtil;
+import ghidra.program.model.pcode.HighSymbol;
+import ghidra.program.model.pcode.LocalSymbolMap;
+import ghidra.program.model.pcode.GlobalSymbolMap;
 import ghidra.util.task.TaskMonitor;
+import ghidra.util.exception.DuplicateNameException;
+import ghidra.util.exception.InvalidInputException;
+import java.util.Iterator;
 import ghidra.util.Msg;
 
 import java.util.concurrent.CompletableFuture;
@@ -111,29 +118,142 @@ public class LLMAnalysisManager {
             if (variableNames != null && !variableNames.isEmpty()) {
                 DecompileResults decompileResults = decompiler.decompileFunction(function, 30, TaskMonitor.DUMMY);
                 if (decompileResults.decompileCompleted()) {
-                    // Get all variables from the function
-                    Variable[] allVars = function.getAllVariables();
+                    // Get function reference
+                    Function currentFn = currentProgram.getFunctionManager()
+                        .getFunctionContaining(function.getEntryPoint());
                     
-                    for (Variable var : allVars) {
-                        String oldName = var.getName();
-                        String newName = variableNames.get(oldName);
-                        if (newName != null && !newName.isEmpty()) {
-                            try {
-                                var.setName(newName, SourceType.USER_DEFINED);
-                                Msg.info(this, String.format("Renamed variable from %s to %s in function %s", 
-                                    oldName, newName, function.getName()));
-                            } catch (Exception e) {
-                                Msg.error(this, String.format("Failed to rename variable %s to %s: %s", 
-                                    oldName, newName, e.getMessage()));
+                    if (currentFn != null) {
+                        // Get the decompiled function representation
+                        ghidra.app.decompiler.DecompiledFunction decompFn = decompileResults.getDecompiledFunction();
+                        String decompSrc = decompFn.getC();
+                        
+                        // Log the current state
+                        Msg.debug(this, "Decompiled source:\n" + decompSrc);
+                        Msg.debug(this, "\nRename suggestions:");
+                        variableNames.forEach((k, v) -> Msg.debug(this, String.format("  %s → %s", k, v)));
+                        
+                        // Create variable trackers for different types
+                        Set<String> processedVars = new HashSet<>();
+                        
+                        // 1. Process parameters
+                        Variable[] parameters = currentFn.getParameters();
+                        for (Variable param : parameters) {
+                            String oldName = param.getName();
+                            processVariable(param, oldName, variableNames, processedVars);
+                        }
+                        
+                        // 2. Process all local variables
+                        Variable[] locals = currentFn.getAllVariables();
+                        for (Variable local : locals) {
+                            // Skip parameters as we already processed them
+                            if (!processedVars.contains(local.getName())) {
+                                String oldName = local.getName();
+                                processVariable(local, oldName, variableNames, processedVars);
                             }
                         }
+                        
+                        // 3. Process stack variables specifically to ensure we don't miss any
+                        LocalSymbolMap localMap = decompileResults.getHighFunction().getLocalSymbolMap();
+                        Iterator<HighSymbol> symbolIterator = localMap.getSymbols();
+                        while (symbolIterator.hasNext()) {
+                            HighSymbol symbol = symbolIterator.next();
+                            String oldName = symbol.getName();
+                            if (variableNames.containsKey(oldName) && !processedVars.contains(oldName)) {
+                                String newName = variableNames.get(oldName);
+                                try {
+                                    int transactionId = currentProgram.startTransaction("Rename Variable");
+                                    HighFunctionDBUtil.updateDBVariable(symbol, newName, null, SourceType.ANALYSIS);
+                                    currentProgram.endTransaction(transactionId, true);
+                                    processedVars.add(oldName);
+                                    Msg.info(this, String.format("Renamed %s to %s", oldName, newName));
+                                } catch (DuplicateNameException | InvalidInputException e) {
+                                    Msg.error(this, String.format("Failed to rename %s: %s", oldName, e.getMessage()));
+                                }
+                            }
+                        }
+
+                        // 3. Process global variables if they match our patterns
+                        variableNames.keySet().stream()
+                            .filter(name -> name.startsWith("DAT_") || name.startsWith("PTR_"))
+                            .forEach(name -> {
+                                try {
+                                    ghidra.program.model.symbol.SymbolIterator symbols = 
+                                        currentProgram.getSymbolTable().getSymbols(name);
+                                    while (symbols.hasNext()) {
+                                        ghidra.program.model.symbol.Symbol symbol = symbols.next();
+                                        if (symbol != null) {
+                                            String newName = variableNames.get(name);
+                                            symbol.setName(newName, SourceType.USER_DEFINED);
+                                            processedVars.add(name);
+                                            Msg.info(this, String.format("Renamed global %s to %s", 
+                                                name, newName));
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    Msg.debug(this, String.format(
+                                        "Could not process global variable %s: %s", 
+                                        name, e.getMessage()));
+                                }
+                            });
+                        
+                        // 4. Try to handle any remaining field variables or references
+                        variableNames.keySet().stream()
+                            .filter(name -> !processedVars.contains(name))
+                            .forEach(name -> {
+                                try {
+                                    // Look for symbols with this name in function's scope
+                                    ghidra.program.model.symbol.SymbolIterator symbols = 
+                                        currentProgram.getSymbolTable().getSymbols(name);
+                                    if (symbols.hasNext()) {
+                                        ghidra.program.model.symbol.Symbol symbol = symbols.next();
+                                        String newName = variableNames.get(name);
+                                        symbol.setName(newName, SourceType.USER_DEFINED);
+                                        processedVars.add(name);
+                                        Msg.info(this, String.format("Renamed symbol %s to %s", 
+                                            name, newName));
+                                    }
+                                } catch (Exception e) {
+                                    Msg.debug(this, String.format(
+                                        "Could not process symbol %s: %s", 
+                                        name, e.getMessage()));
+                                }
+                            });
+                        
+                        // Log any variables we still couldn't find
+                        variableNames.keySet().stream()
+                            .filter(name -> !processedVars.contains(name))
+                            .forEach(name -> Msg.debug(this, 
+                                String.format("Could not find variable in program: %s", name)));
                     }
+                    
+                    // Clean refresh of decompiler view
+                    decompiler.dispose();
+                    initializeDecompiler();
+                    decompileResults = decompiler.decompileFunction(function, 30, TaskMonitor.DUMMY);
                 } else {
                     Msg.error(this, "Failed to decompile function for variable renaming: " + function.getName());
                 }
             }
         } catch (Exception e) {
             Msg.error(this, "Error applying renaming suggestions: " + e.getMessage());
+        }
+    }
+
+    private void processVariable(Variable var, String oldName, Map<String, String> variableNames,
+            Set<String> processedVars) {
+        String newName = variableNames.get(oldName);
+        if (newName != null && !newName.isEmpty()) {
+            try {
+                // For all variables, just apply the new name - the high level interface
+                // already handles the proper storage type
+                var.setName(newName, SourceType.USER_DEFINED);
+                currentProgram.flushEvents();
+                Msg.info(this, String.format("Renamed %s to %s (storage: %s)", 
+                    oldName, newName, var.getVariableStorage()));
+                processedVars.add(oldName);
+            } catch (Exception e) {
+                Msg.error(this, String.format("Failed to rename %s: %s", oldName, e.getMessage()));
+            }
         }
     }
 
@@ -171,9 +291,49 @@ public class LLMAnalysisManager {
         // Then get and apply the renaming suggestions
         CompletableFuture<RenamingResponse> suggestions = provider.analyze(
             String.format(
-                "Suggest better names for this function and its variables:\n\n" +
-                "Current function name: %s\n" +
-                "Signature: %s\n\n%s",
+                """
+                Analyze the provided decompiled function and suggest semantically meaningful names for the function and all variables.
+
+                Current function name: %s
+                Signature: %s
+
+                Decompiled Code:
+                %s
+
+                Important Instructions:
+                1. Do not change or strip any variable prefixes
+                2. Use the EXACT variable names as they appear in the code as keys
+                3. Include suggestions for ALL variables, including:
+                   - Stack variables (uStack_XX, ppuStack_XX)
+                   - Register variables (iVarX, puVar1, pcVar1, etc.)
+                   - Local variables (local_XX)
+                   - Parameters (param_X)
+                   - Global variables (DAT_XXX, PTR_XXX)
+                   - Field variables or references
+
+                Naming Guidelines:
+                - Names should be descriptive and indicate purpose/role
+                - Consider data types when suggesting names (pointer, array, string, etc.)
+                - Use consistent naming conventions
+                - Preserve type information in names (e.g., 'ptr' for pointers)
+                - Base names on how variables are used in the code
+                - Consider function context and parameters when naming variables
+
+                Example JSON format:
+                {
+                    "functionName": "suggestedName",
+                    "variableNames": {
+                        "uStack_24": "configBuffer",
+                        "ppuStack_28": "dataPointer",
+                        "iVar1": "loopCounter",
+                        "local_10": "tempResult",
+                        "param_1": "inputSize",
+                        "DAT_0040a000": "globalConfig"
+                    }
+                }
+
+                NOTE: Variable names must match EXACTLY as they appear in the code.
+                """,
                 function.getName(),
                 function.getSignature(),
                 functionBody
