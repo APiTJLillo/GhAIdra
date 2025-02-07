@@ -18,34 +18,29 @@ java {
 }
 
 dependencies {
-    // HTTP client
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-
-    // JSON handling
+    // External dependencies from Maven Central
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
     implementation 'com.fasterxml.jackson.core:jackson-core:2.15.2'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.2'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2'
 
-    // Logging
-    implementation 'org.slf4j:slf4j-api:1.7.36'
-    implementation 'org.slf4j:slf4j-simple:1.7.36'
-
     // Ghidra dependencies - Framework
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Project/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Generic/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Utility/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Graph/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/DB/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/SoftwareModeling/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/FileSystem/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Docking/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Project/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Generic/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Utility/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Graph/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/DB/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/SoftwareModeling/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/FileSystem/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Docking/lib", include: '*.jar')
 
     // Ghidra dependencies - Features
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Base/lib", include: '*.jar')
-    compileOnly fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Decompiler/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Base/lib", include: '*.jar')
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Decompiler/lib", include: '*.jar')
 }
 
 // Plugin metadata
@@ -98,6 +93,16 @@ jar {
             'Implementation-Version': project.version
         )
     }
+    
+    zip64 = true
+    
+    // Include dependencies in the final jar
+    from {
+        configurations.runtimeClasspath.filter { it.name.contains('okhttp') || it.name.contains('jackson') }
+        .collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 // Ensure Ghidra install directory exists

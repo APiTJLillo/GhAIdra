@@ -3,31 +3,31 @@ package ghidra.plugins.llm;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Interface for LLM providers. Each provider (Azure, Ollama, etc.) must implement this interface.
+ * Interface for LLM providers that can analyze code and suggest improvements.
  */
 public interface LLMProvider {
     /**
-     * Configures the provider with its specific configuration.
-     * @param config The provider-specific configuration
+     * Configures the provider with the given configuration.
+     * @param config the configuration to use
      */
     void configure(LLMConfig config);
 
     /**
-     * Analyzes text with general context.
-     * @param prompt The text to analyze
-     * @return A future containing the analysis result
+     * Analyzes the given code and suggests renames.
+     * @param prompt the code analysis prompt 
+     * @return future containing renaming suggestions
      */
-    CompletableFuture<String> analyze(String prompt);
+    CompletableFuture<RenamingResponse> analyze(String prompt);
 
     /**
-     * Analyzes a function with specific reverse engineering context.
-     * @param prompt The function text to analyze
-     * @return A future containing the analysis result
+     * Analyzes a function for detailed understanding.
+     * @param prompt the function analysis prompt
+     * @return future containing the function analysis
      */
-    CompletableFuture<String> analyzeFunction(String prompt);
+    CompletableFuture<FunctionSummaryResponse> analyzeFunction(String prompt);
 
     /**
-     * Releases any resources held by the provider.
+     * Disposes of any resources used by this provider.
      */
     void dispose();
 }

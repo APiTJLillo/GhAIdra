@@ -10,6 +10,8 @@ import ghidra.app.plugin.ProgramPlugin;
 import ghidra.framework.plugintool.Plugin;
 import ghidra.plugins.llm.AnalysisConfig;
 import ghidra.plugins.llm.LLMAnalysisManager;
+import ghidra.plugins.llm.FunctionSummaryResponse;
+import ghidra.plugins.llm.RenamingResponse;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
@@ -178,11 +180,21 @@ public class LLMPluginProvider extends ComponentProvider {
         analysisManager.resetSession();
         analysisManager.analyzeFunction(function, 0)
             .thenAccept(result -> {
-                String summary = extractSummary(result);
-                setSummary(summary);
-                appendOutput(result);
-                appendOutput("\n----------------------------------------\n");
-                appendOutput("Analysis complete for: " + function.getName() + "\n");
+                if (result != null) {
+                    setSummary(result.getSummary());
+                    appendOutput("Function Summary: " + result.getSummary() + "\n\n");
+                    
+                    FunctionSummaryResponse.Details details = result.getDetails();
+                    if (details != null) {
+                        appendOutput("Purpose: " + details.getPurpose() + "\n\n");
+                        appendOutput("Algorithmic Patterns: " + details.getAlgorithmicPatterns() + "\n\n");
+                        appendOutput("Security Implications: " + details.getSecurityImplications() + "\n");
+                    }
+                    appendOutput("\n----------------------------------------\n");
+                    appendOutput("Analysis complete for: " + function.getName() + "\n");
+                } else {
+                    appendOutput("Error: Failed to analyze function\n");
+                }
             })
             .exceptionally(e -> {
                 appendOutput("\nError during analysis: " + e.getMessage() + "\n");
@@ -203,31 +215,24 @@ public class LLMPluginProvider extends ComponentProvider {
         analysisManager.resetSession();
         analysisManager.suggestRenames(function, 0)
             .thenAccept(result -> {
-                appendOutput(result);
-                appendOutput("\n----------------------------------------\n");
-                appendOutput("Suggestions complete for: " + function.getName() + "\n");
+                if (result != null) {
+                    appendOutput("Suggested function name: " + result.getFunctionName() + "\n\n");
+                    if (result.getVariableNames() != null && !result.getVariableNames().isEmpty()) {
+                        appendOutput("Suggested variable names:\n");
+                        result.getVariableNames().forEach((oldName, newName) -> 
+                            appendOutput(String.format("  %s → %s\n", oldName, newName))
+                        );
+                    }
+                    appendOutput("\n----------------------------------------\n");
+                    appendOutput("Suggestions complete for: " + function.getName() + "\n");
+                } else {
+                    appendOutput("Error: Failed to generate suggestions\n");
+                }
             })
             .exceptionally(e -> {
                 appendOutput("\nError generating suggestions: " + e.getMessage() + "\n");
                 return null;
             });
-    }
-
-    private String extractSummary(String analysis) {
-        StringBuilder summary = new StringBuilder();
-        String[] sections = analysis.split("\n\n");
-        
-        // Take the first paragraph of each numbered section
-        for (String section : sections) {
-            if (section.matches("\\d+\\..*")) {
-                String[] paragraphs = section.split("\n");
-                if (paragraphs.length > 0) {
-                    summary.append(paragraphs[0].trim()).append("\n\n");
-                }
-            }
-        }
-        
-        return summary.toString().trim();
     }
 
     public void appendOutput(String text) {

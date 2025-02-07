@@ -17,6 +17,8 @@ import okhttp3.MediaType;
 
 import ghidra.plugins.llm.LLMConfig;
 import ghidra.plugins.llm.LLMProvider;
+import ghidra.plugins.llm.RenamingResponse;
+import ghidra.plugins.llm.FunctionSummaryResponse;
 import ghidra.util.Msg;
 
 /**
@@ -50,91 +52,166 @@ public class AzureOpenAIProvider implements LLMProvider {
             .build();
     }
 
-    @Override
-    public CompletableFuture<String> analyze(String prompt) {
-        return makeChatRequest(prompt, "You are a helpful assistant.", config.getModelForAnalysis());
-    }
+    private static final int MAX_RETRIES = 3;
+    private static final String RENAMING_SYSTEM_PROMPT = """
+        You are an expert code analyzer. Your task is to suggest ONE best clear and descriptive name for each function and variable.
+        IMPORTANT: Return raw JSON only, without any markdown formatting, code blocks, or additional text.
+        Format your response exactly like this:
+        {
+            "functionName": "suggestedName",
+            "variableNames": {
+                "oldVarName1": "newVarName1",
+                "oldVarName2": "newVarName2"
+            }
+        }
+        Rules:
+        - Return raw JSON only, no markdown, no code blocks
+        - For each function or variable, provide EXACTLY ONE best name suggestion
+        - Do not provide multiple options or alternatives
+        - Use camelCase for variable names and PascalCase for function names
+        - Names should be clear, descriptive, and concise
+        - Focus on making names that accurately reflect their purpose
+        - Use clear, descriptive names without unnecessary prefixes
+        - For pointer variables, use names that indicate what they point to
+        - Names should reflect the variable's purpose and type naturally
+        """;
+
+    private static final String ANALYSIS_SYSTEM_PROMPT = """
+        You are an expert reverse engineer analyzing decompiled code.
+        IMPORTANT: Return raw JSON only, without any markdown formatting, code blocks, or additional text.
+        Format your response exactly like this:
+        {
+            "summary": "One-line summary of function's purpose",
+            "details": {
+                "purpose": "Detailed description of function's purpose",
+                "algorithmicPatterns": "Key algorithms or patterns used",
+                "securityImplications": "Security considerations"
+            }
+        }
+        Rules:
+        - Return raw JSON only, no markdown, no code blocks
+        - Be concise and specific
+        - Focus on the core functionality and key behaviors
+        - Include important security implications and potential vulnerabilities
+        - Summarize any notable algorithmic patterns or techniques
+        """;
 
     @Override
-    public CompletableFuture<String> analyzeFunction(String prompt) {
-        return makeChatRequest(
-            prompt,
-            "You are an expert reverse engineer analyzing decompiled code. " +
-            "Focus on identifying the purpose, parameters, and behavior of functions.",
-            config.getModelForAnalysis()
-        );
+    public CompletableFuture<RenamingResponse> analyze(String prompt) {
+        return makeChatRequestWithRetry(prompt, RENAMING_SYSTEM_PROMPT, config.getModelForAnalysis(), RenamingResponse.class);
     }
 
-    public CompletableFuture<String> suggest(String prompt) {
-        return makeChatRequest(
-            prompt,
-            "You are an expert code analyzer focused on suggesting clear, descriptive names for functions and variables.",
-            config.getModelForRenaming()
-        );
+    @Override
+    public CompletableFuture<FunctionSummaryResponse> analyzeFunction(String prompt) {
+        return makeChatRequestWithRetry(prompt, ANALYSIS_SYSTEM_PROMPT, config.getModelForAnalysis(), FunctionSummaryResponse.class);
     }
 
-    private CompletableFuture<String> makeChatRequest(String prompt, String systemPrompt, String modelId) {
+    private <T> CompletableFuture<T> makeChatRequestWithRetry(final String prompt, String systemPrompt, String modelId, Class<T> responseClass) {
         return CompletableFuture.supplyAsync(() -> {
-            try {
-                ObjectNode root = mapper.createObjectNode();
-                root.put("model", modelId);
-                root.put("temperature", config.getTemperature());
-                root.put("max_tokens", config.getMaxTokens());
+            int retryCount = 0;
+            String currentPrompt = prompt;
 
-                ArrayNode messages = root.putArray("messages");
-                ObjectNode systemMessage = messages.addObject();
-                systemMessage.put("role", "system");
-                systemMessage.put("content", systemPrompt);
+            while (retryCount < MAX_RETRIES) {
+                try {
+                    ObjectNode root = mapper.createObjectNode();
+                    root.put("model", modelId);
+                    root.put("temperature", config.getTemperature());
+                    root.put("max_tokens", config.getMaxTokens());
 
-                ObjectNode userMessage = messages.addObject();
-                userMessage.put("role", "user");
-                userMessage.put("content", prompt);
+                    ArrayNode messages = root.putArray("messages");
+                    ObjectNode systemMessage = messages.addObject();
+                    systemMessage.put("role", "system");
+                    systemMessage.put("content", systemPrompt);
 
-                // Clean up the endpoint URL
-                String baseEndpoint = config.getEndpoint().replaceAll("/+$", ""); // Remove trailing slashes
-                
-                // Extract base URL if full URL was provided
-                if (baseEndpoint.contains("/chat/completions")) {
-                    baseEndpoint = baseEndpoint.substring(0, baseEndpoint.indexOf("/chat/completions"));
-                }
-                if (baseEndpoint.contains("?api-version=")) {
-                    baseEndpoint = baseEndpoint.substring(0, baseEndpoint.indexOf("?api-version="));
-                }
-                
-                // Ensure the URL has the correct format
-                if (!baseEndpoint.contains("/openai/deployments/")) {
-                    throw new IllegalArgumentException(
-                        "Invalid Azure endpoint format. Expected format: " +
-                        "https://{resource-name}.openai.azure.com/openai/deployments/{deployment-name}"
-                    );
-                }
+                    ObjectNode userMessage = messages.addObject();
+                    userMessage.put("role", "user");
+                    userMessage.put("content", currentPrompt);
 
-                // Construct the full URL with API version
-                String requestUrl = baseEndpoint + "/chat/completions?api-version=2023-05-15";
-                Msg.debug(this, String.format("Making request to: %s (model: %s)", requestUrl, modelId));
-                
-                RequestBody body = RequestBody.create(root.toString(), JSON);
-                Request request = new Request.Builder()
-                    .url(requestUrl)
-                    .addHeader("api-key", config.getKey())
-                    .addHeader("Content-Type", "application/json")
-                    .post(body)
-                    .build();
-
-                try (Response response = client.newCall(request).execute()) {
-                    if (!response.isSuccessful()) {
-                        String errorBody = response.body() != null ? response.body().string() : "No error body";
-                        throw new IOException(String.format("Request failed with code %d: %s", 
-                            response.code(), errorBody));
+                    // Clean up the endpoint URL
+                    String baseEndpoint = config.getEndpoint().replaceAll("/+$", "");
+                    if (baseEndpoint.contains("/chat/completions")) {
+                        baseEndpoint = baseEndpoint.substring(0, baseEndpoint.indexOf("/chat/completions"));
+                    }
+                    if (baseEndpoint.contains("?api-version=")) {
+                        baseEndpoint = baseEndpoint.substring(0, baseEndpoint.indexOf("?api-version="));
                     }
 
-                    JsonNode jsonResponse = mapper.readTree(response.body().string());
-                    return jsonResponse.path("choices").get(0).path("message").path("content").asText();
+                    if (!baseEndpoint.contains("/openai/deployments/")) {
+                        throw new IllegalArgumentException(
+                            "Invalid Azure endpoint format. Expected format: " +
+                            "https://{resource-name}.openai.azure.com/openai/deployments/{deployment-name}"
+                        );
+                    }
+
+                    String requestUrl = baseEndpoint + "/chat/completions?api-version=2023-05-15";
+                    Msg.debug(this, String.format("Making request to: %s (model: %s)", requestUrl, modelId));
+
+                    RequestBody body = RequestBody.create(root.toString(), JSON);
+                    Request request = new Request.Builder()
+                        .url(requestUrl)
+                        .addHeader("api-key", config.getKey())
+                        .addHeader("Content-Type", "application/json")
+                        .post(body)
+                        .build();
+
+                    try (Response response = client.newCall(request).execute()) {
+                        if (!response.isSuccessful()) {
+                            String errorBody = response.body() != null ? response.body().string() : "No error body";
+                            throw new IOException(String.format("Request failed with code %d: %s", 
+                                response.code(), errorBody));
+                        }
+
+                        String responseContent = response.body().string();
+                        JsonNode jsonResponse = mapper.readTree(responseContent);
+                        String content = jsonResponse.path("choices").get(0).path("message").path("content").asText();
+                        
+                        // Clean up the response - remove markdown code blocks if present
+                        content = content.replaceAll("```json\\s*", "")
+                                      .replaceAll("```\\s*", "")
+                                      .trim();
+
+                        try {
+                            T parsedResponse = mapper.readValue(content, responseClass);
+                            
+                            // Validate the response
+                            if (parsedResponse instanceof RenamingResponse) {
+                                RenamingResponse renamingResponse = (RenamingResponse) parsedResponse;
+                                if (!renamingResponse.isValid()) {
+                                    throw new IOException("Invalid renaming response format");
+                                }
+                            } else if (parsedResponse instanceof FunctionSummaryResponse) {
+                                FunctionSummaryResponse summaryResponse = (FunctionSummaryResponse) parsedResponse;
+                                if (!summaryResponse.isValid()) {
+                                    throw new IOException("Invalid function summary response format");
+                                }
+                            }
+                            
+                            return parsedResponse;
+                        } catch (Exception e) {
+                            if (retryCount < MAX_RETRIES - 1) {
+                                // Add error context to the next attempt
+                                final String errorMsg = e.getMessage();
+                                currentPrompt = String.format(
+                                    "Previous response was invalid. Please fix the JSON format and try again.\n" +
+                                    "Error: %s\n\nOriginal prompt:\n%s",
+                                    errorMsg, prompt
+                                );
+                                retryCount++;
+                                continue;
+                            }
+                            throw e;
+                        }
+                    }
+                } catch (Exception e) {
+                    if (retryCount < MAX_RETRIES - 1) {
+                        retryCount++;
+                        continue;
+                    }
+                    Msg.error(this, "Error making chat request after " + MAX_RETRIES + " retries: " + e.getMessage());
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                Msg.error(this, "Error making chat request: " + e.getMessage());
-                throw new RuntimeException(e);
             }
+            throw new RuntimeException("Failed to get valid response after " + MAX_RETRIES + " retries");
         });
     }
 
