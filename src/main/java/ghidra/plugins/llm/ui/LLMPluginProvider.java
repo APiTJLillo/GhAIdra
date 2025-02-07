@@ -107,13 +107,24 @@ public class LLMPluginProvider extends ComponentProvider {
             analysisManager.getConfig().setRecursiveRenaming(recursiveRenamingBox.isSelected());
         });
 
+        JCheckBox renameSimilarBox = new JCheckBox("Automatically Rename Similar Functions");
+        renameSimilarBox.addActionListener(e -> {
+            if (analysisManager.getConfig() == null) {
+                analysisManager.setConfig(new AnalysisConfig());
+            }
+            analysisManager.getConfig().setRenameSimilarFunctions(renameSimilarBox.isSelected());
+        });
+
         // Align checkboxes to the left
         recursiveAnalysisBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         recursiveRenamingBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+        renameSimilarBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         
         optionsPanel.add(recursiveAnalysisBox);
         optionsPanel.add(Box.createVerticalStrut(5));
         optionsPanel.add(recursiveRenamingBox);
+        optionsPanel.add(Box.createVerticalStrut(5));
+        optionsPanel.add(renameSimilarBox);
         
         mainPanel.add(optionsPanel, BorderLayout.WEST);
 

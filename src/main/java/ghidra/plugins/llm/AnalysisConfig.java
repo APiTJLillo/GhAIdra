@@ -9,6 +9,7 @@ import java.util.HashMap;
 public class AnalysisConfig {
     private boolean recursiveAnalysis;
     private boolean recursiveRenaming;
+    private boolean renameSimilarFunctions;
     private Map<Integer, String> depthModelMap;  // Maps depth level to model ID
     private Map<OperationType, String> operationModelMap;  // Maps operation type to model ID
 
@@ -22,6 +23,7 @@ public class AnalysisConfig {
     public AnalysisConfig() {
         this.recursiveAnalysis = false;
         this.recursiveRenaming = false;
+        this.renameSimilarFunctions = false;
         this.depthModelMap = new HashMap<>();
         this.operationModelMap = new HashMap<>();
     }
@@ -56,6 +58,22 @@ public class AnalysisConfig {
      */
     public boolean isRecursiveRenaming() {
         return recursiveRenaming;
+    }
+
+    /**
+     * Sets whether automatic renaming of similar functions is enabled.
+     * @param enabled true to enable similar function renaming
+     */
+    public void setRenameSimilarFunctions(boolean enabled) {
+        this.renameSimilarFunctions = enabled;
+    }
+
+    /**
+     * Gets whether automatic renaming of similar functions is enabled.
+     * @return true if similar function renaming is enabled
+     */
+    public boolean isRenameSimilarFunctions() {
+        return renameSimilarFunctions;
     }
 
     /**

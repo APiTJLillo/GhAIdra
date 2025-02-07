@@ -1,5 +1,4 @@
 Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
-Get variable renaming working
 Get recursion working
  - Recursively build a list of all functions
  - Ensure we ignore functions already in the list

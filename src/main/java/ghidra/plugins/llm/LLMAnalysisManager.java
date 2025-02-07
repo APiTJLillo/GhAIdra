@@ -5,6 +5,10 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.listing.Variable;
+import ghidra.program.model.listing.Parameter;
+import ghidra.program.model.listing.Instruction;
+import ghidra.program.model.listing.FunctionIterator;
+import ghidra.app.plugin.core.analysis.AutoAnalysisManager;
 import ghidra.program.model.symbol.SourceType;
 import ghidra.program.model.pcode.HighFunctionDBUtil;
 import ghidra.program.model.pcode.HighSymbol;
@@ -100,6 +104,135 @@ public class LLMAnalysisManager {
             decompiled);
     }
 
+    private List<Function> findSimilarFunctions(Function function) {
+        List<Function> similarFunctions = new ArrayList<>();
+        if (!config.isRenameSimilarFunctions() || function == null) {
+            return similarFunctions;
+        }
+
+        try {
+            // Get signature of source function
+            FunctionSignature sourceSig = getFunctionSignature(function);
+            if (sourceSig == null) {
+                return similarFunctions;
+            }
+
+            // Get all functions in program
+            Iterator<Function> functions = currentProgram.getFunctionManager().getFunctions(true);
+            while (functions.hasNext()) {
+                Function targetFunc = functions.next();
+                // Skip if it's the same function (compare by entry point to be safe)
+                if (targetFunc.equals(function) || 
+                    targetFunc.getEntryPoint().equals(function.getEntryPoint())) {
+                    continue;
+                }
+
+                FunctionSignature targetSig = getFunctionSignature(targetFunc);
+                if (targetSig != null && targetSig.equals(sourceSig)) {
+                    similarFunctions.add(targetFunc);
+                }
+            }
+        } catch (Exception e) {
+            Msg.error(this, "Error finding similar functions: " + e.getMessage());
+        }
+
+        return similarFunctions;
+    }
+
+    private FunctionSignature getFunctionSignature(Function function) {
+        if (function == null) {
+            return null;
+        }
+
+        List<InstructionDef> signature = new ArrayList<>();
+        Iterator<Instruction> instructions = currentProgram.getListing()
+            .getInstructions(function.getBody(), true);
+
+        while (instructions.hasNext()) {
+            Instruction inst = instructions.next();
+            int[] opTypes = new int[inst.getNumOperands()];
+            for (int i = 0; i < inst.getNumOperands(); i++) {
+                opTypes[i] = inst.getOperandType(i);
+            }
+            signature.add(new InstructionDef(inst.getMnemonicString(), opTypes));
+        }
+
+        return new FunctionSignature(signature);
+    }
+
+    private static class InstructionDef {
+        private final String mnemonic;
+        private final int[] operandTypes;
+
+        public InstructionDef(String mnemonic, int[] operandTypes) {
+            this.mnemonic = mnemonic;
+            this.operandTypes = operandTypes;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof InstructionDef)) {
+                return false;
+            }
+            InstructionDef other = (InstructionDef) obj;
+            if (!mnemonic.equals(other.mnemonic)) {
+                return false;
+            }
+            if (operandTypes.length != other.operandTypes.length) {
+                return false;
+            }
+            for (int i = 0; i < operandTypes.length; i++) {
+                if (operandTypes[i] != other.operandTypes[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = mnemonic.hashCode();
+            for (int type : operandTypes) {
+                hash = 31 * hash + type;
+            }
+            return hash;
+        }
+    }
+
+    private static class FunctionSignature {
+        private final List<InstructionDef> instructions;
+
+        public FunctionSignature(List<InstructionDef> instructions) {
+            this.instructions = instructions;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (!(obj instanceof FunctionSignature)) {
+                return false;
+            }
+            FunctionSignature other = (FunctionSignature) obj;
+            if (instructions.size() != other.instructions.size()) {
+                return false;
+            }
+            for (int i = 0; i < instructions.size(); i++) {
+                if (!instructions.get(i).equals(other.instructions.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 1;
+            for (InstructionDef inst : instructions) {
+                hash = 31 * hash + inst.hashCode();
+            }
+            return hash;
+        }
+    }
+
     private void applyRenamingSuggestions(Function function, RenamingResponse response) {
         if (response == null || !response.isValid()) {
             return;
@@ -108,9 +241,33 @@ public class LLMAnalysisManager {
         try {
             // Rename the function if a new name is suggested
             if (response.getFunctionName() != null && !response.getFunctionName().isEmpty()) {
-                function.setName(response.getFunctionName(), SourceType.USER_DEFINED);
-                Msg.info(this, String.format("Renamed function from %s to %s", 
-                    function.getName(), response.getFunctionName()));
+                // Wait for any auto-analysis to complete
+                AutoAnalysisManager analysisManager = AutoAnalysisManager.getAnalysisManager(currentProgram);
+                if (analysisManager != null && analysisManager.isAnalyzing()) {
+                    analysisManager.waitForAnalysis(5000, TaskMonitor.DUMMY); // Wait up to 5 seconds
+                }
+
+                String oldName = function.getName();
+                int transactionId = currentProgram.startTransaction("Rename Function");
+                try {
+                    function.setName(response.getFunctionName(), SourceType.USER_DEFINED);
+                    currentProgram.flushEvents();
+                    Thread.sleep(100); // Small delay to let changes settle
+                    currentProgram.endTransaction(transactionId, true);
+                } catch (Exception e) {
+                    currentProgram.endTransaction(transactionId, false);
+                    throw e;
+                }
+
+                // Verify the rename persisted
+                Function verifyFunc = currentProgram.getFunctionManager()
+                    .getFunctionAt(function.getEntryPoint());
+                if (verifyFunc != null && verifyFunc.getName().equals(response.getFunctionName())) {
+                    Msg.info(this, String.format("Renamed function from %s to %s", 
+                        oldName, response.getFunctionName()));
+                } else {
+                    Msg.error(this, String.format("Function rename did not persist: %s", oldName));
+                }
             }
 
             // Rename variables
@@ -139,7 +296,67 @@ public class LLMAnalysisManager {
                         Variable[] parameters = currentFn.getParameters();
                         for (Variable param : parameters) {
                             String oldName = param.getName();
-                            processVariable(param, oldName, variableNames, processedVars);
+                            // Handle parameters specially to ensure they stick
+            if (variableNames.containsKey(oldName)) {
+                String newName = variableNames.get(oldName);
+                int transactionId = currentProgram.startTransaction("Rename Parameter");
+                try {
+                    // Ensure no ongoing analysis before parameter rename
+                    AutoAnalysisManager analysisManager = AutoAnalysisManager.getAnalysisManager(currentProgram);
+                    if (analysisManager != null && analysisManager.isAnalyzing()) {
+                        analysisManager.waitForAnalysis(5000, TaskMonitor.DUMMY);
+                    }
+
+                    // Update parameter in function signature first
+                    Function func = param.getFunction();
+                    Variable[] params = func.getParameters();
+                    int index = -1;
+                    for (int i = 0; i < params.length; i++) {
+                        if (params[i].equals(param)) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0) {
+                        // Update the parameter directly in the function
+                        param.setName(newName, SourceType.USER_DEFINED);
+                        // Force signature update
+                        func.updateFunction(
+                            null,  // keep current name
+                            null,  // keep current return type
+                            Function.FunctionUpdateType.DYNAMIC_STORAGE_ALL_PARAMS,
+                            true,  // force update
+                            SourceType.USER_DEFINED
+                        );
+                    } else {
+                        // Fallback to direct rename if not found in signature
+                        param.setName(newName, SourceType.USER_DEFINED);
+                    }
+                    currentProgram.flushEvents();
+                    Thread.sleep(250); // Longer delay for parameters
+                    // Update high-level parameter info
+                    LocalSymbolMap symbolMap = decompileResults.getHighFunction().getLocalSymbolMap();
+                    Iterator<HighSymbol> symbols = symbolMap.getSymbols();
+                    HighSymbol paramSymbol = null;
+                    while (symbols.hasNext()) {
+                        HighSymbol sym = symbols.next();
+                        if (sym.isParameter() && sym.getName().equals(oldName)) {
+                            paramSymbol = sym;
+                            break;
+                        }
+                    }
+                    if (paramSymbol != null) {
+                        HighFunctionDBUtil.updateDBVariable(paramSymbol, newName, null, SourceType.USER_DEFINED);
+                    }
+                    currentProgram.endTransaction(transactionId, true);
+                    processedVars.add(oldName);
+                    Msg.info(this, String.format("Renamed parameter %s to %s (storage: %s)", 
+                        oldName, newName, param.getVariableStorage()));
+                } catch (Exception e) {
+                    currentProgram.endTransaction(transactionId, false);
+                    Msg.error(this, String.format("Failed to rename parameter %s: %s", oldName, e.getMessage()));
+                }
+            }
                         }
                         
                         // 2. Process all local variables
@@ -247,10 +464,38 @@ public class LLMAnalysisManager {
             try {
                 // For all variables, just apply the new name - the high level interface
                 // already handles the proper storage type
-                var.setName(newName, SourceType.USER_DEFINED);
-                currentProgram.flushEvents();
-                Msg.info(this, String.format("Renamed %s to %s (storage: %s)", 
-                    oldName, newName, var.getVariableStorage()));
+                // Wait for any auto-analysis to complete
+                AutoAnalysisManager analysisManager = AutoAnalysisManager.getAnalysisManager(currentProgram);
+                if (analysisManager != null && analysisManager.isAnalyzing()) {
+                    analysisManager.waitForAnalysis(5000, TaskMonitor.DUMMY); // Wait up to 5 seconds
+                }
+
+                int transactionId = currentProgram.startTransaction("Rename Variable");
+                try {
+                    var.setName(newName, SourceType.USER_DEFINED);
+                    currentProgram.flushEvents();
+                    Thread.sleep(100); // Small delay to let changes settle
+                    currentProgram.endTransaction(transactionId, true);
+                } catch (Exception e) {
+                    currentProgram.endTransaction(transactionId, false);
+                    throw e;
+                }
+
+                // Verify the rename persisted
+                Variable[] allVars = var.getFunction().getAllVariables();
+                boolean verified = false;
+                for (Variable v : allVars) {
+                    if (v.getName().equals(newName)) {
+                        verified = true;
+                        break;
+                    }
+                }
+                if (verified) {
+                    Msg.info(this, String.format("Renamed %s to %s (storage: %s)", 
+                        oldName, newName, var.getVariableStorage()));
+                } else {
+                    Msg.error(this, String.format("Variable rename did not persist: %s", oldName));
+                }
                 processedVars.add(oldName);
             } catch (Exception e) {
                 Msg.error(this, String.format("Failed to rename %s: %s", oldName, e.getMessage()));
@@ -349,6 +594,21 @@ public class LLMAnalysisManager {
                     int transactionID = currentProgram.startTransaction("Rename Function and Variables");
                     try {
                         applyRenamingSuggestions(function, response);
+
+                        // Find and rename similar functions if enabled
+                        if (config.isRenameSimilarFunctions() && response.getFunctionName() != null && !response.getFunctionName().isEmpty()) {
+                            List<Function> similarFunctions = findSimilarFunctions(function);
+                            if (!similarFunctions.isEmpty()) {
+                                Msg.info(this, String.format("Found %d similar functions to rename", similarFunctions.size()));
+                                for (Function similar : similarFunctions) {
+                                    String oldName = similar.getName();
+                                    similar.setName(response.getFunctionName(), SourceType.USER_DEFINED);
+                                    Msg.info(this, String.format("Renamed similar function from %s to %s", 
+                                        oldName, response.getFunctionName()));
+                                }
+                            }
+                        }
+
                         currentProgram.endTransaction(transactionID, true);
                         Msg.info(this, "Successfully applied renaming suggestions for " + function.getName());
                     } catch (Exception e) {
@@ -367,10 +627,16 @@ public class LLMAnalysisManager {
         }
 
         return suggestions.thenCompose(renamingResponse -> {
-            if (renamingResponse != null) {
-                Set<Function> childFunctions = function.getCalledFunctions(TaskMonitor.DUMMY);
+            if (renamingResponse != null && currentProgram != null && !currentProgram.isClosed()) {
+                Set<Function> childFunctions;
+                try {
+                    childFunctions = function.getCalledFunctions(TaskMonitor.DUMMY);
+                } catch (Exception e) {
+                    Msg.error(this, "Error getting called functions: " + e.getMessage());
+                    return CompletableFuture.completedFuture(renamingResponse);
+                }
+                
                 CompletableFuture<RenamingResponse> childSuggestions = CompletableFuture.completedFuture(renamingResponse);
-
                 for (Function childFunction : childFunctions) {
                     if (!processedFunctions.contains(childFunction.getName())) {
                         childSuggestions = childSuggestions.thenCompose(previous ->
@@ -441,9 +707,19 @@ public class LLMAnalysisManager {
         }
 
         return analysis.thenCompose(result -> {
-            Set<Function> childFunctions = function.getCalledFunctions(TaskMonitor.DUMMY);
-            CompletableFuture<FunctionSummaryResponse> childAnalyses = CompletableFuture.completedFuture(result);
+            if (currentProgram == null || currentProgram.isClosed()) {
+                return CompletableFuture.completedFuture(result);
+            }
 
+            Set<Function> childFunctions;
+            try {
+                childFunctions = function.getCalledFunctions(TaskMonitor.DUMMY);
+            } catch (Exception e) {
+                Msg.error(this, "Error getting called functions: " + e.getMessage());
+                return CompletableFuture.completedFuture(result);
+            }
+
+            CompletableFuture<FunctionSummaryResponse> childAnalyses = CompletableFuture.completedFuture(result);
             for (Function childFunction : childFunctions) {
                 if (!processedFunctions.contains(childFunction.getName())) {
                     childAnalyses = childAnalyses.thenCompose(previous -> 
@@ -462,7 +738,10 @@ public class LLMAnalysisManager {
                 }
             }
 
-            return childAnalyses;
+            return childAnalyses.exceptionally(e -> {
+                Msg.error(this, "Error during recursive analysis: " + e.getMessage());
+                return result;
+            });
         });
     }
 
