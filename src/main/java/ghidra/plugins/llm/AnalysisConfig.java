@@ -10,6 +10,8 @@ public class AnalysisConfig {
     private boolean recursiveAnalysis;
     private boolean recursiveRenaming;
     private boolean renameSimilarFunctions;
+    private boolean ignoreRenamed;
+    private int recursionDepth;
     private Map<Integer, String> depthModelMap;  // Maps depth level to model ID
     private Map<OperationType, String> operationModelMap;  // Maps operation type to model ID
 
@@ -24,6 +26,8 @@ public class AnalysisConfig {
         this.recursiveAnalysis = false;
         this.recursiveRenaming = false;
         this.renameSimilarFunctions = false;
+        this.ignoreRenamed = false;
+        this.recursionDepth = 0; // 0 = infinite
         this.depthModelMap = new HashMap<>();
         this.operationModelMap = new HashMap<>();
     }
@@ -74,6 +78,38 @@ public class AnalysisConfig {
      */
     public boolean isRenameSimilarFunctions() {
         return renameSimilarFunctions;
+    }
+
+    /**
+     * Sets whether to ignore already renamed functions.
+     * @param enabled true to ignore functions not starting with FUN_
+     */
+    public void setIgnoreRenamed(boolean enabled) {
+        this.ignoreRenamed = enabled;
+    }
+
+    /**
+     * Gets whether to ignore already renamed functions.
+     * @return true if ignoring functions not starting with FUN_
+     */
+    public boolean isIgnoreRenamed() {
+        return ignoreRenamed;
+    }
+
+    /**
+     * Sets the maximum recursion depth (0 = infinite).
+     * @param depth the maximum recursion depth
+     */
+    public void setRecursionDepth(int depth) {
+        this.recursionDepth = depth;
+    }
+
+    /**
+     * Gets the maximum recursion depth (0 = infinite).
+     * @return the maximum recursion depth
+     */
+    public int getRecursionDepth() {
+        return recursionDepth;
     }
 
     /**

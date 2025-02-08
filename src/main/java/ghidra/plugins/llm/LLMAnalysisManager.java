@@ -584,7 +584,8 @@ public class LLMAnalysisManager {
     }
 
     public CompletableFuture<RenamingResponse> suggestRenames(Function function, int depth) {
-        if (function == null || processedFunctions.contains(function.getName())) {
+        if (function == null || processedFunctions.contains(function.getName()) ||
+            (config.isIgnoreRenamed() && !function.getName().startsWith("FUN_"))) {
             return CompletableFuture.completedFuture(null);
         }
 
@@ -744,7 +745,8 @@ public class LLMAnalysisManager {
             return response;
         });
 
-        if (!config.isRecursiveRenaming()) {
+        int maxDepth = config.getRecursionDepth();
+        if (!config.isRecursiveRenaming() || (maxDepth > 0 && depth >= maxDepth)) {
             return suggestions;
         }
 
@@ -782,7 +784,8 @@ public class LLMAnalysisManager {
     }
 
     public CompletableFuture<FunctionSummaryResponse> analyzeFunction(Function function, int depth) {
-        if (function == null || processedFunctions.contains(function.getName())) {
+        if (function == null || processedFunctions.contains(function.getName()) ||
+            (config.isIgnoreRenamed() && !function.getName().startsWith("FUN_"))) {
             return CompletableFuture.completedFuture(null);
         }
 
@@ -824,7 +827,8 @@ public class LLMAnalysisManager {
                 return null;
             });
 
-        if (!config.isRecursiveAnalysis()) {
+        int maxDepth = config.getRecursionDepth();
+        if (!config.isRecursiveAnalysis() || (maxDepth > 0 && depth >= maxDepth)) {
             return analysis;
         }
 
