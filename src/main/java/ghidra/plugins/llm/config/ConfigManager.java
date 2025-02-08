@@ -3,8 +3,11 @@ package ghidra.plugins.llm.config;
 import java.io.*;
 import java.util.*;
 import java.util.Properties;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import ghidra.framework.Application;
+import ghidra.plugins.llm.ProjectContext;
 
 public class ConfigManager {
     private static final String CONFIG_FILE_NAME = "azure_config.properties";
@@ -13,10 +16,13 @@ public class ConfigManager {
     private String defaultAnalysisProvider;
     private String defaultRenamingProvider;
     private Map<String, Properties> providerConfigs;
+    private ProjectContext projectContext;
+    private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
     private ConfigManager() {
         properties = new Properties();
         providerConfigs = new HashMap<>();
+        projectContext = new ProjectContext();
         loadConfig();
     }
 
@@ -33,6 +39,12 @@ public class ConfigManager {
             if (configFile.exists()) {
                 try (FileInputStream fis = new FileInputStream(configFile)) {
                     properties.load(fis);
+                }
+                
+                // Load project context if it exists
+                String contextJson = properties.getProperty("project.context");
+                if (contextJson != null) {
+                    projectContext = gson.fromJson(contextJson, ProjectContext.class);
                 }
             }
             defaultAnalysisProvider = properties.getProperty("default.analysis.provider", "azure-openai");
@@ -101,6 +113,10 @@ public class ConfigManager {
                 }
             }
 
+            // Save project context
+            String contextJson = gson.toJson(projectContext);
+            newProperties.setProperty("project.context", contextJson);
+
             // Update main properties
             properties.clear();
             properties.putAll(newProperties);
@@ -112,6 +128,32 @@ public class ConfigManager {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Gets the current project context.
+     * @return the project context
+     */
+    public ProjectContext getProjectContext() {
+        return projectContext;
+    }
+
+    /**
+     * Updates the project context and saves the configuration.
+     * @param context the new project context
+     */
+    public void setProjectContext(ProjectContext context) {
+        this.projectContext = context;
+        saveConfig();
+    }
+
+    /**
+     * Updates a specific aspect of the project context.
+     * @param updater function to update the context
+     */
+    public void updateProjectContext(java.util.function.Consumer<ProjectContext> updater) {
+        updater.accept(projectContext);
+        saveConfig();
     }
 
     public String getDefaultAnalysisProvider() {

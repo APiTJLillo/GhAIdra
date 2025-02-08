@@ -12,6 +12,7 @@ import ghidra.plugins.llm.LLMProviderRegistry;
 import ghidra.plugins.llm.providers.azure.*;
 import ghidra.framework.plugintool.Plugin;
 import ghidra.plugins.llm.LLMPlugin;
+import ghidra.plugins.llm.ProjectContext;
 
 public class LLMConfigDialog extends JDialog {
     private final Plugin plugin;
@@ -25,6 +26,7 @@ public class LLMConfigDialog extends JDialog {
     private JPanel providerConfigPanel;
     private JComboBox<String> analysisProviderCombo;
     private JComboBox<String> renamingProviderCombo;
+    private ProjectContextPanel projectContextPanel;
 
     private static class ProviderConfigEntry {
         final String name;
@@ -62,6 +64,7 @@ public class LLMConfigDialog extends JDialog {
     private void initComponents() {
         JTabbedPane tabbedPane = new JTabbedPane();
         providerListModel = new DefaultListModel<>();
+        projectContextPanel = new ProjectContextPanel();
 
         // Providers Tab
         JPanel providersPanel = new JPanel(new BorderLayout(10, 0));
@@ -189,6 +192,7 @@ public class LLMConfigDialog extends JDialog {
         generalPanel.add(renamingProviderCombo, gbc);
 
         tabbedPane.addTab("General Settings", generalPanel);
+        tabbedPane.addTab("Project Context", projectContextPanel);
 
         // Dialog buttons
         JPanel dialogButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -236,6 +240,12 @@ public class LLMConfigDialog extends JDialog {
     private static final String AZURE_DEEPSEEK_TYPE = "azure-deepseek";
 
     private void loadCurrentConfig() {
+        // Load project context
+        ProjectContext context = configManager.getProjectContext();
+        if (context != null) {
+            projectContextPanel.loadContext(context);
+        }
+
         // Load Azure OpenAI provider
         Properties props = configManager.getProviderConfig(AZURE_OPENAI_TYPE);
         if (!props.isEmpty()) {
@@ -405,6 +415,10 @@ public class LLMConfigDialog extends JDialog {
         if (selectedRenaming != null) {
             configManager.setDefaultRenamingProvider(selectedRenaming);
         }
+
+        // Save project context
+        ProjectContext context = projectContextPanel.getContext();
+        configManager.setProjectContext(context);
 
         // Save all changes
         configManager.saveConfig();

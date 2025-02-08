@@ -19,6 +19,11 @@ import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import java.util.Iterator;
 import ghidra.util.Msg;
+import ghidra.program.model.symbol.Reference;
+import ghidra.program.model.symbol.ReferenceManager;
+import ghidra.program.model.address.AddressSetView;
+import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressIterator;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.Set;
@@ -82,26 +87,101 @@ public class LLMAnalysisManager {
     }
 
     private String buildAnalysisPrompt(Function function, String decompiled) {
-        return String.format("""
-            Analyze the following function:
+        ProjectContext context = configManager.getProjectContext();
+        StringBuilder prompt = new StringBuilder();
+
+        // Add project context if available
+        if (context != null) {
+            prompt.append(context.toPromptContext()).append("\n\n");
+        }
+
+        // Gather information about callers
+        StringBuilder callerContext = new StringBuilder();
+        try {
+            Set<Function> callers = function.getCallingFunctions(TaskMonitor.DUMMY);
+            if (!callers.isEmpty()) {
+                callerContext.append("\nFunction Call Context:\n");
+                for (Function caller : callers) {
+                    // Get references to our function from the caller
+                    Reference[] refs = getReferences(currentProgram, caller, function);
+                    if (refs.length > 0) {
+                        callerContext.append("\nCalled from: ").append(caller.getName()).append("\n");
+                        
+                        // Get decompiled caller to analyze call sites
+                        String callerCode = decompileFunction(caller);
+                        if (!callerCode.isEmpty()) {
+                            // Find the relevant lines containing our function call
+                            for (String line : callerCode.split("\n")) {
+                                if (line.contains(function.getName() + "(")) {
+                                    callerContext.append("  Call: ").append(line.trim()).append("\n");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Msg.error(this, "Error getting caller context: " + e.getMessage());
+        }
+
+        prompt.append(String.format("""
+            Analyze the following function with respect to the above project context:
 
             Function Name: %s
             Entry Point: %s
             Signature: %s
+            %s
 
             Decompiled Code:
             %s
 
             Provide analysis in the specified JSON format focusing on:
             1. A concise one-line summary of the function's purpose
-            2. Detailed explanation of functionality
-            3. Key algorithms or patterns identified
+            2. Detailed explanation of functionality and its role in the system
+            3. Key algorithms or patterns identified (especially those mentioned in project context)
             4. Security implications or concerns
-            """, 
+            5. Relationship to any domain-specific terms or patterns from project context
+            6. Usage patterns based on calling context
+            7. System Integration: Explain how this function fits into the larger system
+               - How it interacts with the project's core components (e.g., Gamebryo, LuaPlus)
+               - Its role in the application's architecture
+               - Any relationships to defined patterns or frameworks
+            8. UI/Interface Analysis:
+               - Analyze any UI-related string references (e.g., InterfaceCore.*, ConsoleRootWindow.*)
+               - Identify UI framework patterns and component initialization
+               - Map the function's role in the UI lifecycle (Initialize, Update, Shutdown)
+               - Consider UI event handling and registration patterns
+            9. Naming Considerations:
+               - Consider subsystem prefix (e.g., UI, Interface) when relevant
+               - Reflect the component being managed (e.g., InterfaceCore)
+               - Include lifecycle phase if applicable (Init, Update, Shutdown)
+               - Indicate event handling or registration purpose
+            """,
             function.getName(),
             function.getEntryPoint(),
             function.getSignature(),
-            decompiled);
+            callerContext.toString(),
+            decompiled));
+
+        return prompt.toString();
+    }
+
+    private Reference[] getReferences(Program program, Function caller, Function target) {
+        ReferenceManager refManager = program.getReferenceManager();
+        AddressSetView callerBody = caller.getBody();
+        
+        List<Reference> refs = new ArrayList<>();
+        AddressIterator addresses = callerBody.getAddresses(true);
+        while (addresses.hasNext()) {
+            Address addr = addresses.next();
+            Reference[] refsFrom = refManager.getReferencesFrom(addr);
+            for (Reference ref : refsFrom) {
+                if (ref.getToAddress().equals(target.getEntryPoint())) {
+                    refs.add(ref);
+                }
+            }
+        }
+        return refs.toArray(new Reference[0]);
     }
 
     private List<Function> findSimilarFunctions(Function function) {
@@ -531,8 +611,15 @@ public class LLMAnalysisManager {
             return CompletableFuture.completedFuture(error);
         }
 
-        // First get the function summary
+        // First get and wait for the function summary
         CompletableFuture<FunctionSummaryResponse> summary = analyzeFunction(function, depth);
+        FunctionSummaryResponse summaryResponse = summary.join();  // Wait for summary
+        
+        // Log the summary before proceeding with rename suggestions
+        if (summaryResponse != null) {
+            Msg.info(this, String.format("\n[Function Summary] %s:\n%s\n", 
+                function.getName(), summaryResponse.getSummary()));
+        }
         
         // Then get and apply the renaming suggestions
         CompletableFuture<RenamingResponse> suggestions = provider.analyze(
@@ -564,6 +651,11 @@ public class LLMAnalysisManager {
                 - Preserve type information in names (e.g., 'ptr' for pointers)
                 - Base names on how variables are used in the code
                 - Consider function context and parameters when naming variables
+                - For PTR_LAB_* and LAB_* symbols:
+                  - Analyze the code they point to if available
+                  - Consider the context where they're used
+                  - Use descriptive names like jumpTable_*, errorHandler_*, etc.
+                  - Include the purpose of the code pointer
 
                 Example JSON format:
                 {
@@ -578,7 +670,37 @@ public class LLMAnalysisManager {
                     }
                 }
 
+                Special Naming Rules:
+                1. Function pointers (PTR_LAB_*, PTR_FUN_*):
+                   - Describe the type of function being pointed to
+                   - Include the purpose (e.g., PTR_errorHandler, PTR_jumpTable)
+                   - Preserve the pointer type prefix
+                2. Code labels (LAB_*):
+                   - Name based on their role in control flow
+                   - Include error handling or state transitions
+                   - Use clear action verbs where possible
+                3. Data labels (DAT_*):
+                   - Name based on data structure or purpose
+                   - Include type information if known
+                   - Preserve the data type prefix
+                   - Analyze usage context:
+                     * If used with UI functions -> DAT_uiRegistry, DAT_windowManager, etc.
+                     * If used for events -> DAT_eventHandler, DAT_eventRegistry, etc.
+                     * If used for resources -> DAT_resourceTable, DAT_resourceManager, etc.
+                   - Consider surrounding function context:
+                     * Function name and purpose
+                     * Error messages and string references
+                     * Related API calls
+                   - Look for patterns in how the data is accessed
+
                 NOTE: Variable names must match EXACTLY as they appear in the code.
+                For special labels, maintain the prefix (PTR_, LAB_, DAT_) in suggestions.
+                
+                Example with DAT_ naming:
+                - If used in window/UI context: DAT_windowRegistry, DAT_uiEventTable
+                - If used for resource management: DAT_resourceManager, DAT_resourceTable
+                - If used in core systems: DAT_systemRegistry, DAT_coreFunctionTable
+                - Base names on actual usage: errors about "Window does not exist" suggest window registry/management
                 """,
                 function.getName(),
                 function.getSignature(),
@@ -587,7 +709,7 @@ public class LLMAnalysisManager {
         );
 
         // Automatically apply the suggestions when they arrive
-        suggestions = suggestions.thenCombine(summary, (response, summaryResponse) -> {
+        suggestions = suggestions.thenCombine(summary, (response, existingSummary) -> {
             if (response != null && response.isValid()) {
                 try {
                     // Apply the renaming suggestions within a transaction

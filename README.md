@@ -11,6 +11,12 @@ A Ghidra plugin that uses Azure OpenAI services to analyze and improve function 
   - Azure DeepSeek
 - Recursive Analysis: Option to analyze called functions recursively
 - Configurable Settings: Temperature, max tokens, and model selection
+- Project Context Awareness:
+  - Define application-specific context for more accurate analysis
+  - Describe frameworks, engines, and architecture patterns
+  - Custom terminology dictionary for domain-specific terms
+  - Document common code patterns and conventions
+  - Function call context shows how functions are used
 
 ## Prerequisites
 
@@ -67,6 +73,34 @@ This will create: `dist/ghidra_11.2.1_PUBLIC_YYYYMMDD_ghidra-azure-plugin.zip`
 Configuration options:
 - Enable Recursive Analysis: Also analyze functions called by the current function
 - Enable Recursive Renaming: Suggest renames for called functions as well
+- Project Context Settings:
+  - Project Name and Type: Identify the application being analyzed
+  - Description: Detail the application's technology stack and architecture
+  - Common Patterns: Document recurring code patterns (e.g., "Lua calls wrapped in event handlers")
+  - Domain Terminology: Define technical terms (e.g., "LuaPlus", "Gamebryo")
+  - Contextual Hints: Add implementation details (e.g., "Network packets use 2-byte headers")
+
+Examples:
+```
+Project Description:
+Ultima Online Stygian Abyss client
+Uses Gamebryo engine for 3D rendering
+Uses LuaPlus for game scripting
+Lua calls are translated to C++ using events
+
+Common Patterns:
+- Lua function calls wrapped in event handlers
+- UI elements created through XML templates
+- Network packets follow standard header format
+
+Domain Terms:
+- Gamebryo: 3D game engine providing rendering and physics
+- LuaPlus: Extended Lua scripting engine for game logic
+
+Contextual Hints:
+- Network Protocol: Custom packet format with 2-byte headers
+- Script Integration: Lua functions map to C++ event handlers
+```
 
 ## Troubleshooting
 

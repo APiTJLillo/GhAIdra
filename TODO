@@ -1,7 +1,68 @@
-Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
-Get recursion working
- - Recursively build a list of all functions
- - Ensure we ignore functions already in the list
- - Analyze/rename functions at the deepest level first
- - Allow for different models to be used at shallower levels if we want smarter models on more important functions
- - Similar to the python script, rename all functions with the same instructions as the current one
+Completed:
+✓ Make the tool remember selections of checkboxes for recursive analysis, renaming, and auto rename of similar functions
+✓ Add the ability to provide the model context around the currently open project so it knows what it should consider looking for
+✓ Get recursion working
+  ✓ Recursively build a list of all functions
+  ✓ Ensure we ignore functions already in the list
+  ✓ Analyze/rename functions at the deepest level first
+  ✓ Allow for different models to be used at shallower levels if we want smarter models on more important functions
+  ✓ Similar to the python script, rename all functions with the same instructions as the current one
+
+In Progress:
+□ Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
+
+New Features To Add:
+□ Project Chat Interface
+  - Natural language queries about the project
+  - Search functions by description or purpose
+  - Find similar functions based on behavior
+  - Query strings and references
+  - Ask about common patterns found in the codebase
+
+□ Advanced Search Capabilities
+  - Search for functions by their behavior
+  - Find all functions that use specific APIs
+  - Locate similar code patterns across functions
+  - Search for specific security patterns or vulnerabilities
+
+□ Function Understanding Tools
+  - Compare functions against known algorithms
+  - Identify cryptographic implementations
+  - Generate documentation for function groups
+  - Create call graphs with semantic descriptions
+
+□ Code Pattern Analysis
+  - Learn and detect project-specific patterns
+  - Identify common error handling patterns
+  - Find protocol implementations
+  - Map high-level features to code implementations
+
+□ Integration Features
+  - Export analysis results to documentation
+  - Generate diagrams of system architecture
+  - Create function relationship maps
+  - Annotate code with architectural insights
+
+□ Project Overview Tools
+  - Generate project structure summaries
+  - Identify main components and their interactions
+  - Map feature implementations across codebase
+  - Document API usage patterns
+
+□ Interactive Analysis
+  - Ask follow-up questions about functions
+  - Request example usage scenarios
+  - Get explanations of complex algorithms
+  - Query function relationships
+
+□ Security Analysis
+  - Identify potential vulnerabilities
+  - Analyze input validation patterns
+  - Check for common security issues
+  - Review error handling completeness
+
+□ Custom Analysis Rules
+  - Define project-specific analysis rules
+  - Create custom naming conventions
+  - Configure pattern detection
+  - Set up security compliance checks
