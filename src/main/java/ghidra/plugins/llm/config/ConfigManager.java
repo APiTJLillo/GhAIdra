@@ -260,6 +260,22 @@ public class ConfigManager {
         setProviderConfig("azure-openai", config);
     }
 
+    // Analysis Options persistence methods
+    public void saveAnalysisOptions(Properties options) {
+        properties.putAll(options);
+        saveConfig();
+    }
+
+    public Properties getAnalysisOptions() {
+        Properties options = new Properties();
+        options.setProperty("analysis.recursive", properties.getProperty("analysis.recursive", "false"));
+        options.setProperty("analysis.recursive.renaming", properties.getProperty("analysis.recursive.renaming", "false"));
+        options.setProperty("analysis.rename.similar", properties.getProperty("analysis.rename.similar", "false"));
+        options.setProperty("analysis.ignore.renamed", properties.getProperty("analysis.ignore.renamed", "false"));
+        options.setProperty("analysis.recursion.depth", properties.getProperty("analysis.recursion.depth", "0"));
+        return options;
+    }
+
     public boolean isRecursiveAnalysisEnabled() {
         Properties props = getProviderConfig("azure-openai");
         return Boolean.parseBoolean(props.getProperty("recursive.analysis.enabled", "false"));

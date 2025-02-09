@@ -24,6 +24,8 @@ public class OperationManager {
     private final SimulationOperation simulationOperation;
     private final SimulationConfigPanel simulationConfigPanel;
     private final AtomicBoolean operationInProgress;
+    private final AtomicBoolean interruptRequested;
+    private List<java.util.concurrent.CompletableFuture<?>> activeFutures;
 
     public OperationManager(
             LLMAnalysisManager analysisManager,
@@ -36,6 +38,8 @@ public class OperationManager {
         this.outputPanel = outputPanel;
         this.buttonPanel = buttonPanel;
         this.operationInProgress = new AtomicBoolean(false);
+        this.interruptRequested = new AtomicBoolean(false);
+        this.activeFutures = new ArrayList<>();
         this.simulationOperation = new SimulationOperation(program);
         this.simulationConfigPanel = new SimulationConfigPanel(this::handleSimulationConfigChange);
         
@@ -53,6 +57,7 @@ public class OperationManager {
         buttonPanel.setRenameAllActionListener(() -> startRenameOperation(true));
         buttonPanel.setSimulateActionListener(this::startSimulateOperation);
         buttonPanel.setClearActionListener(this::clearOutput);
+        buttonPanel.setStopActionListener(this::interruptOperation);
     }
 
     private synchronized void startOperation() {
@@ -62,12 +67,16 @@ public class OperationManager {
             return;
         }
         operationInProgress.set(true);
+        interruptRequested.set(false);
+        activeFutures.clear();
         buttonPanel.startOperation();
         analysisOptionsPanel.setEnabled(false);
     }
 
     private synchronized void finishOperation() {
         operationInProgress.set(false);
+        interruptRequested.set(false);
+        activeFutures.clear();
         buttonPanel.finishOperation();
         analysisOptionsPanel.setEnabled(true);
     }
@@ -75,7 +84,8 @@ public class OperationManager {
     public void startAnalyzeOperation(boolean analyzeAll) {
         startOperation();
         try {
-            analysisOptionsPanel.saveState();
+            analysisOptionsPanel.updateConfig();
+            analysisOptionsPanel.saveOptions();
             Function currentFunction = analysisManager.getCurrentFunction();
             if (currentFunction == null) {
                 outputPanel.displayError("No function selected");
@@ -103,10 +113,13 @@ public class OperationManager {
                 // Start batch analysis with total count
                 outputPanel.startBatchAnalysis(allFunctions.size());
                 AtomicInteger completed = new AtomicInteger(0);
-                List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+                activeFutures = new ArrayList<>();
                 
                 allFunctions.forEach(function -> {
-                    futures.add(analysisManager.analyzeFunction(function, 0)
+                    if (interruptRequested.get()) {
+                        return;  // Skip remaining functions if interrupted
+                    }
+                    java.util.concurrent.CompletableFuture<Void> future = analysisManager.analyzeFunction(function, 0)
                         .thenAccept(result -> {
                             outputPanel.displayAnalysisResult(result, function.getName());
                             outputPanel.updateBatchProgress(completed.incrementAndGet(), allFunctions.size());
@@ -114,11 +127,12 @@ public class OperationManager {
                         .exceptionally(e -> {
                             handleAnalysisError("Error analyzing " + function.getName() + ": " + e.getMessage());
                             return null;
-                        }));
+                        });
+                    activeFutures.add(future);
                 });
                 
                 // Wait for all analyses to complete
-                java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                java.util.concurrent.CompletableFuture.allOf(activeFutures.toArray(new java.util.concurrent.CompletableFuture[0]))
                     .thenRun(this::handleAnalysisComplete)
                     .exceptionally(e -> {
                         handleAnalysisError("Error during batch analysis: " + e.getMessage());
@@ -134,7 +148,8 @@ public class OperationManager {
     public void startRenameOperation(boolean renameAll) {
         startOperation();
         try {
-            analysisOptionsPanel.saveState();
+            analysisOptionsPanel.updateConfig();
+            analysisOptionsPanel.saveOptions();
             Function currentFunction = analysisManager.getCurrentFunction();
             if (currentFunction == null) {
                 outputPanel.displayError("No function selected");
@@ -171,10 +186,13 @@ public class OperationManager {
                 // Start batch rename with total count
                 outputPanel.startBatchAnalysis(allFunctions.size());
                 AtomicInteger completed = new AtomicInteger(0);
-                List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+                activeFutures = new ArrayList<>();
                 
                 allFunctions.forEach(function -> {
-                    futures.add(analysisManager.suggestRenames(function, 0)
+                    if (interruptRequested.get()) {
+                        return;  // Skip remaining functions if interrupted
+                    }
+                    java.util.concurrent.CompletableFuture<Void> future = analysisManager.suggestRenames(function, 0)
                         .thenAccept(result -> {
                             if (result != null) {
                                 outputPanel.appendOutput("\nFunction: " + function.getName() + "\n");
@@ -192,11 +210,12 @@ public class OperationManager {
                         .exceptionally(e -> {
                             handleAnalysisError("Error analyzing " + function.getName() + ": " + e.getMessage());
                             return null;
-                        }));
+                        });
+                    activeFutures.add(future);
                 });
                 
                 // Wait for all rename operations to complete
-                java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                java.util.concurrent.CompletableFuture.allOf(activeFutures.toArray(new java.util.concurrent.CompletableFuture[0]))
                     .thenRun(() -> {
                         outputPanel.appendOutput("\nBatch rename analysis complete.\n");
                         handleAnalysisComplete();
@@ -240,6 +259,23 @@ public class OperationManager {
 
     public void handleAnalysisError(String error) {
         outputPanel.displayError(error);
+        finishOperation();
+    }
+
+    private synchronized void interruptOperation() {
+        if (!operationInProgress.get()) {
+            return;
+        }
+        
+        interruptRequested.set(true);
+        outputPanel.appendOutput("\nOperation interrupted by user.\n");
+        
+        // Cancel all active futures
+        for (java.util.concurrent.CompletableFuture<?> future : activeFutures) {
+            future.cancel(true);
+        }
+        activeFutures.clear();
+        
         finishOperation();
     }
 

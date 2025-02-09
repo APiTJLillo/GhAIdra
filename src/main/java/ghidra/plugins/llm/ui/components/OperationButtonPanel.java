@@ -17,6 +17,7 @@ public class OperationButtonPanel extends JPanel {
     private final JButton simulateButton;
     private final JButton configureButton;
     private final JButton clearButton;
+    private final JButton stopButton;
     private volatile boolean operationInProgress;
     private final JPanel analysisButtons;
     private final JPanel simulationButtons;
@@ -29,6 +30,8 @@ public class OperationButtonPanel extends JPanel {
         operationInProgress = false;
         
         // Initialize buttons
+        stopButton = createButton("Stop Operation");
+        stopButton.setEnabled(false);
         analyzeButton = createButton("Analyze Function");
         analyzeAllButton = createButton("Analyze All Functions");
         renameFunctionButton = createButton("Rename Function");
@@ -72,7 +75,7 @@ public class OperationButtonPanel extends JPanel {
         contentPanel.add(Box.createVerticalStrut(5));
 
         // Add utility buttons
-        JPanel utilityButtons = createButtonRow(configureButton, clearButton);
+        JPanel utilityButtons = createButtonRow(stopButton, configureButton, clearButton);
         contentPanel.add(utilityButtons);
 
         // Set preferred button size for consistency
@@ -170,10 +173,11 @@ public class OperationButtonPanel extends JPanel {
         operationInProgress = true;
         SwingUtilities.invokeLater(() -> {
             for (JButton button : operationButtons) {
-                if (button != clearButton && button != configureButton) {
+                if (button != clearButton && button != configureButton && button != stopButton) {
                     button.setEnabled(false);
                 }
             }
+            stopButton.setEnabled(true);
         });
     }
 
@@ -181,7 +185,11 @@ public class OperationButtonPanel extends JPanel {
         operationInProgress = false;
         SwingUtilities.invokeLater(() -> {
             for (JButton button : operationButtons) {
-                button.setEnabled(true);
+                if (button == stopButton) {
+                    button.setEnabled(false);
+                } else {
+                    button.setEnabled(true);
+                }
             }
         });
     }
@@ -198,6 +206,10 @@ public class OperationButtonPanel extends JPanel {
         simulationButtons.setVisible(true);
         revalidate();
         repaint();
+    }
+
+    public void setStopActionListener(Runnable action) {
+        stopButton.addActionListener(e -> action.run());
     }
 
     public boolean isOperationInProgress() {

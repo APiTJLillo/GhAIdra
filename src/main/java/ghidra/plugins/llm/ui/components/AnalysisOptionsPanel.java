@@ -2,8 +2,10 @@ package ghidra.plugins.llm.ui.components;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.Properties;
 import ghidra.plugins.llm.AnalysisConfig;
 import ghidra.plugins.llm.LLMAnalysisManager;
+import ghidra.plugins.llm.config.ConfigManager;
 
 /**
  * Panel containing analysis configuration options.
@@ -16,22 +18,30 @@ public class AnalysisOptionsPanel extends JPanel {
     private final JSpinner recursionDepthSpinner;
     private final LLMAnalysisManager analysisManager;
 
+    private final ConfigManager configManager;
+
     public AnalysisOptionsPanel(LLMAnalysisManager analysisManager) {
         this.analysisManager = analysisManager;
-        
+        this.configManager = ConfigManager.getInstance();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBorder(BorderFactory.createTitledBorder("Analysis Options"));
 
-        // Create checkboxes
-        recursiveAnalysisBox = new JCheckBox("Enable Recursive Analysis");
-        recursiveRenamingBox = new JCheckBox("Enable Recursive Renaming");
-        renameSimilarBox = new JCheckBox("Automatically Rename Similar Functions");
-        ignoreRenamedBox = new JCheckBox("Only Rename FUN_ Functions");
+        // Create checkboxes with saved states
+        Properties savedOptions = configManager.getAnalysisOptions();
+        recursiveAnalysisBox = new JCheckBox("Enable Recursive Analysis", 
+            Boolean.parseBoolean(savedOptions.getProperty("analysis.recursive", "false")));
+        recursiveRenamingBox = new JCheckBox("Enable Recursive Renaming",
+            Boolean.parseBoolean(savedOptions.getProperty("analysis.recursive.renaming", "false")));
+        renameSimilarBox = new JCheckBox("Automatically Rename Similar Functions",
+            Boolean.parseBoolean(savedOptions.getProperty("analysis.rename.similar", "false")));
+        ignoreRenamedBox = new JCheckBox("Only Rename FUN_ Functions",
+            Boolean.parseBoolean(savedOptions.getProperty("analysis.ignore.renamed", "false")));
         
-        // Create recursion depth spinner
-        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(0, 0, 100, 1);
+        // Create recursion depth spinner with saved state
+        int savedDepth = Integer.parseInt(savedOptions.getProperty("analysis.recursion.depth", "0"));
+        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(savedDepth, 0, 100, 1);
         recursionDepthSpinner = new JSpinner(spinnerModel);
-        recursionDepthSpinner.setEnabled(false); // Initially disabled
+        recursionDepthSpinner.setEnabled(recursiveAnalysisBox.isSelected() || recursiveRenamingBox.isSelected());
         JComponent editor = recursionDepthSpinner.getEditor();
         if (editor instanceof JSpinner.DefaultEditor) {
             JTextField tf = ((JSpinner.DefaultEditor) editor).getTextField();
@@ -52,38 +62,30 @@ public class AnalysisOptionsPanel extends JPanel {
 
     private void setupListeners() {
         recursiveAnalysisBox.addActionListener(e -> {
-            analysisManager.setConfig(new AnalysisConfig());
-            analysisManager.getConfig().setRecursiveAnalysis(recursiveAnalysisBox.isSelected());
+            updateConfig();
+            saveOptions();
             updateRecursionSpinner();
         });
         
         recursiveRenamingBox.addActionListener(e -> {
-            if (analysisManager.getConfig() == null) {
-                analysisManager.setConfig(new AnalysisConfig());
-            }
-            analysisManager.getConfig().setRecursiveRenaming(recursiveRenamingBox.isSelected());
+            updateConfig();
+            saveOptions();
             updateRecursionSpinner();
         });
 
         renameSimilarBox.addActionListener(e -> {
-            if (analysisManager.getConfig() == null) {
-                analysisManager.setConfig(new AnalysisConfig());
-            }
-            analysisManager.getConfig().setRenameSimilarFunctions(renameSimilarBox.isSelected());
+            updateConfig();
+            saveOptions();
         });
 
         ignoreRenamedBox.addActionListener(e -> {
-            if (analysisManager.getConfig() == null) {
-                analysisManager.setConfig(new AnalysisConfig());
-            }
-            analysisManager.getConfig().setIgnoreRenamed(ignoreRenamedBox.isSelected());
+            updateConfig();
+            saveOptions();
         });
 
         recursionDepthSpinner.addChangeListener(e -> {
-            if (analysisManager.getConfig() == null) {
-                analysisManager.setConfig(new AnalysisConfig());
-            }
-            analysisManager.getConfig().setRecursionDepth((Integer) recursionDepthSpinner.getValue());
+            updateConfig();
+            saveOptions();
         });
     }
 
@@ -122,7 +124,7 @@ public class AnalysisOptionsPanel extends JPanel {
             (recursiveAnalysisBox.isSelected() || recursiveRenamingBox.isSelected()));
     }
 
-    public void saveState() {
+    public void updateConfig() {
         if (analysisManager.getConfig() == null) {
             analysisManager.setConfig(new AnalysisConfig());
         }
@@ -132,6 +134,16 @@ public class AnalysisOptionsPanel extends JPanel {
         config.setRenameSimilarFunctions(renameSimilarBox.isSelected());
         config.setIgnoreRenamed(ignoreRenamedBox.isSelected());
         config.setRecursionDepth((Integer) recursionDepthSpinner.getValue());
+    }
+
+    public void saveOptions() {
+        Properties options = new Properties();
+        options.setProperty("analysis.recursive", String.valueOf(recursiveAnalysisBox.isSelected()));
+        options.setProperty("analysis.recursive.renaming", String.valueOf(recursiveRenamingBox.isSelected()));
+        options.setProperty("analysis.rename.similar", String.valueOf(renameSimilarBox.isSelected()));
+        options.setProperty("analysis.ignore.renamed", String.valueOf(ignoreRenamedBox.isSelected()));
+        options.setProperty("analysis.recursion.depth", String.valueOf(recursionDepthSpinner.getValue()));
+        configManager.saveAnalysisOptions(options);
     }
 
     public void loadState() {

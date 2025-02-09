@@ -17,17 +17,23 @@ Completed:
   ✓ Added dedicated simulation interface
   ✓ Integrated PCODE simulation capabilities
   ✓ Added simulation configuration options
-
+✓ Add a stop button that can stop any operation in progress
+✓ Persist values in the Analysis Options section across sessions
 In Progress:
 □ Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
   ▣ Basic simulation framework added
   ▣ UI integration complete
   □ AI input suggestion system
   □ Results visualization
-□ Add a stop button that can stop any operation in progress
-□ Persist values in the Analysis Options section across sessions
 
 New Features To Add:
+□ Add tools for the LLM to interact with the application, allowing the LLM to use the tools
+  - Tools for searching strings, patterns, etc
+  - Tools for updating function and variable names
+  - Tools for updating types
+
+□ Provide a way to chat with the application, allowing the LLM to use the tools to find the answer
+
 □ Visual tree for recursive function renaming
   - Use tree to show progress of renaming
   - Use the built in function map to show this progress
