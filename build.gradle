@@ -46,6 +46,7 @@ dependencies {
     implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Framework/Help/lib", include: ['*.jar'])
     implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Base/lib", include: ['*.jar'])
     implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/Decompiler/lib", include: ['*.jar'])
+    implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Features/BytePatterns/lib", include: ['*.jar'])
     implementation fileTree(dir: "${ghidraInstallDir}/Ghidra/Processors/x86/lib", include: ['*.jar'])
     
     // External dependencies - these will be bundled in the final JAR

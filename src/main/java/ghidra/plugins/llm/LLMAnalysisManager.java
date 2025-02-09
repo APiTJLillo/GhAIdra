@@ -42,6 +42,7 @@ public class LLMAnalysisManager {
     private AnalysisConfig config;
     private Set<String> processedFunctions;
     private Program currentProgram;
+    private Function currentFunction;
     private DecompInterface decompiler;
 
     public LLMAnalysisManager(Program program) {
@@ -880,5 +881,13 @@ public class LLMAnalysisManager {
             decompiler.dispose();
             decompiler = null;
         }
+    }
+
+    public Function getCurrentFunction() {
+        return currentFunction;
+    }
+
+    public void setCurrentFunction(Function function) {
+        this.currentFunction = function;
     }
 }

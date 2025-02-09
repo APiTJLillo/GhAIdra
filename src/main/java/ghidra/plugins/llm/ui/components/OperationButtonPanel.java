@@ -14,9 +14,12 @@ public class OperationButtonPanel extends JPanel {
     private final JButton analyzeAllButton;
     private final JButton renameFunctionButton;
     private final JButton renameAllButton;
+    private final JButton simulateButton;
     private final JButton configureButton;
     private final JButton clearButton;
     private volatile boolean operationInProgress;
+    private final JPanel analysisButtons;
+    private final JPanel simulationButtons;
 
     public OperationButtonPanel() {
         super(new BorderLayout(5, 5));
@@ -30,11 +33,19 @@ public class OperationButtonPanel extends JPanel {
         analyzeAllButton = createButton("Analyze All Functions");
         renameFunctionButton = createButton("Rename Function");
         renameAllButton = createButton("Rename Function & Variables");
+        simulateButton = createButton("Simulate Function");
         configureButton = createButton("Configure LLM");
         clearButton = createButton("Clear Output");
         
+        // Create button panels
+        analysisButtons = createButtonRow(analyzeButton, analyzeAllButton, renameFunctionButton, renameAllButton);
+        simulationButtons = createButtonRow(simulateButton);
+        
         // Layout components
         layoutComponents();
+
+        // Initially hide simulation buttons
+        simulationButtons.setVisible(false);
     }
 
     private JButton createButton(String text) {
@@ -47,21 +58,29 @@ public class OperationButtonPanel extends JPanel {
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
         
-        // Function Analysis Section
-        JPanel analysisButtons = createButtonRow(analyzeButton, analyzeAllButton);
-        
-        // Renaming Section
-        JPanel renameButtons = createButtonRow(renameFunctionButton, renameAllButton);
+        // Create main button panel with some padding
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
 
-        // Utility Buttons Section
-        JPanel utilityButtons = createButtonRow(configureButton, clearButton);
-
-        // Add all sections
+        // Add button panels with consistent sizing
         contentPanel.add(analysisButtons);
         contentPanel.add(Box.createVerticalStrut(5));
-        contentPanel.add(renameButtons);
+        contentPanel.add(simulationButtons);
         contentPanel.add(Box.createVerticalStrut(5));
+
+        // Add separator before utility buttons
+        contentPanel.add(new JSeparator());
+        contentPanel.add(Box.createVerticalStrut(5));
+
+        // Add utility buttons
+        JPanel utilityButtons = createButtonRow(configureButton, clearButton);
         contentPanel.add(utilityButtons);
+
+        // Set preferred button size for consistency
+        Dimension buttonSize = new Dimension(150, 25);
+        for (JButton button : operationButtons) {
+            button.setPreferredSize(buttonSize);
+            button.setMinimumSize(buttonSize);
+        }
         
         add(contentPanel, BorderLayout.CENTER);
     }
@@ -134,6 +153,19 @@ public class OperationButtonPanel extends JPanel {
         clearButton.addActionListener(e -> action.run());
     }
 
+    public void setSimulateActionListener(Runnable action) {
+        simulateButton.addActionListener(e -> {
+            if (!operationInProgress) {
+                startOperation();
+                try {
+                    action.run();
+                } catch (Exception ex) {
+                    finishOperation();
+                }
+            }
+        });
+    }
+
     public synchronized void startOperation() {
         operationInProgress = true;
         SwingUtilities.invokeLater(() -> {
@@ -152,6 +184,20 @@ public class OperationButtonPanel extends JPanel {
                 button.setEnabled(true);
             }
         });
+    }
+
+    public void showAnalysisButtons() {
+        analysisButtons.setVisible(true);
+        simulationButtons.setVisible(false);
+        revalidate();
+        repaint();
+    }
+
+    public void showSimulationButtons() {
+        analysisButtons.setVisible(false);
+        simulationButtons.setVisible(true);
+        revalidate();
+        repaint();
     }
 
     public boolean isOperationInProgress() {

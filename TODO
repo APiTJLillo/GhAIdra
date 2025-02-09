@@ -10,6 +10,8 @@ Completed:
 
 In Progress:
 □ Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
+□ Add a stop button that can stop any operation in progress
+□ Persist values in the Analysis Options section across sessions
 
 New Features To Add:
 □ Project Chat Interface

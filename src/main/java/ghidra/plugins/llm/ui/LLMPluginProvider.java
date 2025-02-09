@@ -19,12 +19,10 @@ import ghidra.util.Msg;
 
 public class LLMPluginProvider extends ComponentProvider {
     private volatile boolean disposed = false;
-    private final JPanel mainPanel;
+    private final MainTabbedPanel mainPanel;
     private final Plugin plugin;
     private final LLMAnalysisManager analysisManager;
     private final OperationManager operationManager;
-    private final AnalysisOptionsPanel optionsPanel;
-    private final AnalysisOutputPanel outputPanel;
     private final OperationButtonPanel buttonPanel;
     private UpdateListener updateListener;
 
@@ -32,49 +30,29 @@ public class LLMPluginProvider extends ComponentProvider {
         super(plugin.getTool(), "LLM Analysis", plugin.getName());
         this.plugin = plugin;
         this.analysisManager = analysisManager;
-        
+
+        if (!(plugin instanceof ProgramPlugin)) {
+            throw new IllegalArgumentException("Plugin must be a ProgramPlugin");
+        }
+        Program program = ((ProgramPlugin)plugin).getCurrentProgram();
+        if (program == null) {
+            throw new IllegalArgumentException("No program is loaded");
+        }
+
         // Create components
-        this.mainPanel = new JPanel(new BorderLayout(10, 10));
-        this.mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        
-        this.optionsPanel = new AnalysisOptionsPanel(analysisManager);
-        this.outputPanel = new AnalysisOutputPanel();
+        AnalysisOptionsPanel optionsPanel = new AnalysisOptionsPanel(analysisManager);
+        AnalysisOutputPanel outputPanel = new AnalysisOutputPanel();
         this.buttonPanel = new OperationButtonPanel();
         
         // Create operation manager
         this.operationManager = new OperationManager(
-            analysisManager, optionsPanel, outputPanel, buttonPanel);
+            analysisManager, optionsPanel, outputPanel, buttonPanel, program);
         
-        // Build UI
-        buildPanel();
-        
-        // Setup button actions
-        setupActions();
-    }
+        // Create main tabbed panel
+        this.mainPanel = new MainTabbedPanel(operationManager);
 
-    public void addUpdateListener(UpdateListener listener) {
-        this.updateListener = listener;
-        this.outputPanel.setUpdateListener(listener);
-    }
-
-    private void buildPanel() {
-        // Add options panel to west
-        mainPanel.add(optionsPanel, BorderLayout.WEST);
-        
-        // Add output panel to center
-        mainPanel.add(outputPanel, BorderLayout.CENTER);
-        
-        // Add button panel to south
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
-    }
-
-    private void setupActions() {
-        buttonPanel.setAnalyzeActionListener(() -> analyzeCurrentFunction());
-        buttonPanel.setAnalyzeAllActionListener(() -> analyzeAllFunctions());
-        buttonPanel.setRenameFunctionActionListener(() -> suggestRenames(false));
-        buttonPanel.setRenameAllActionListener(() -> suggestRenames(true));
-        buttonPanel.setConfigureActionListener(() -> showConfigDialog());
-        buttonPanel.setClearActionListener(() -> clearOutput());
+        // Setup button handlers
+        setupButtonHandlers();
     }
 
     public void showConfigDialog() {
@@ -84,13 +62,52 @@ public class LLMPluginProvider extends ComponentProvider {
         configDialog.setVisible(true);
     }
 
+    private void setupButtonHandlers() {
+        buttonPanel.setAnalyzeActionListener(() -> {
+            Function function = getCurrentFunction();
+            if (function != null) {
+                operationManager.displayAnalysisStart(function);
+                analysisManager.analyzeFunction(function, 0)
+                    .thenAccept(result -> {
+                        operationManager.getOutputPanel().displayAnalysisResult(result, function.getName());
+                        operationManager.handleAnalysisComplete();
+                    })
+                    .exceptionally(e -> {
+                        operationManager.handleAnalysisError(e.getMessage());
+                        return null;
+                    });
+            }
+        });
+
+        buttonPanel.setAnalyzeAllActionListener(() -> analyzeAllFunctions());
+        
+        buttonPanel.setRenameFunctionActionListener(() -> {
+            Function function = getCurrentFunction();
+            if (function != null) {
+                operationManager.displayRenameStart(function);
+                suggestRenamesForFunction(function);
+            }
+        });
+        
+        buttonPanel.setRenameAllActionListener(() -> {
+            Function function = getCurrentFunction();
+            if (function != null) {
+                operationManager.displayRenameStart(function);
+                suggestRenamesForFunction(function);
+            }
+        });
+        
+        buttonPanel.setConfigureActionListener(this::showConfigDialog);
+        buttonPanel.setClearActionListener(this::clearOutput);
+    }
+
     public void analyzeCurrentFunction() {
         Function function = getCurrentFunction();
         if (function != null) {
             operationManager.displayAnalysisStart(function);
             analysisManager.analyzeFunction(function, 0)
                 .thenAccept(result -> {
-                    outputPanel.displayAnalysisResult(result, function.getName());
+                    operationManager.getOutputPanel().displayAnalysisResult(result, function.getName());
                     operationManager.handleAnalysisComplete();
                 })
                 .exceptionally(e -> {
@@ -127,7 +144,7 @@ public class LLMPluginProvider extends ComponentProvider {
             operationManager.displayAnalysisStart(function);
             analysisManager.analyzeFunction(function, 0)
                 .thenAccept(result -> {
-                    outputPanel.displayAnalysisResult(result, function.getName());
+                    operationManager.getOutputPanel().displayAnalysisResult(result, function.getName());
                 })
                 .exceptionally(e -> {
                     operationManager.handleAnalysisError(e.getMessage());
@@ -227,19 +244,24 @@ public class LLMPluginProvider extends ComponentProvider {
         return disposed;
     }
 
+    public void addUpdateListener(UpdateListener listener) {
+        this.updateListener = listener;
+        operationManager.getOutputPanel().setUpdateListener(listener);
+    }
+
     // Output handling methods
     public void clearOutput() {
         if (updateListener != null) {
             updateListener.onUpdate();
         }
-        outputPanel.clearOutput();
+        operationManager.getOutputPanel().clearOutput();
     }
 
     public void appendOutput(String text) {
-        outputPanel.appendOutput(text);
+        operationManager.getOutputPanel().appendOutput(text);
     }
 
     public void setSummary(String text) {
-        outputPanel.setSummary(text);
+        operationManager.getOutputPanel().setSummary(text);
     }
 }
