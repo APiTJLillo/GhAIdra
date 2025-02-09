@@ -12,6 +12,7 @@ import ghidra.util.Msg;
 public class AnalysisOutputPanel extends JPanel {
     private final JTextArea outputArea;
     private final JTextArea summaryArea;
+    private final JProgressBar progressBar;
     private UpdateListener updateListener;
 
     public AnalysisOutputPanel() {
@@ -20,6 +21,11 @@ public class AnalysisOutputPanel extends JPanel {
         // Initialize text areas
         outputArea = createTextArea();
         summaryArea = createTextArea();
+        
+        // Create progress bar
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        progressBar.setVisible(false);
         
         // Create split pane
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -38,7 +44,16 @@ public class AnalysisOutputPanel extends JPanel {
         splitPane.setResizeWeight(0.7);
         splitPane.setDividerLocation(0.7);
         
-        add(splitPane, BorderLayout.CENTER);
+        // Layout with progress bar
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        mainPanel.add(splitPane, BorderLayout.CENTER);
+        
+        JPanel progressPanel = new JPanel(new BorderLayout());
+        progressPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
+        progressPanel.add(progressBar, BorderLayout.CENTER);
+        mainPanel.add(progressPanel, BorderLayout.SOUTH);
+        
+        add(mainPanel, BorderLayout.CENTER);
     }
 
     private JTextArea createTextArea() {
@@ -95,6 +110,7 @@ public class AnalysisOutputPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             outputArea.setText("");
             summaryArea.setText("");
+            progressBar.setVisible(false);
             if (updateListener != null) {
                 updateListener.onUpdate();
             }
@@ -106,6 +122,31 @@ public class AnalysisOutputPanel extends JPanel {
         appendOutput("Analyzing function: " + functionName + "\n");
         appendOutput("This may take a few minutes. You'll see the response stream as it arrives.\n");
         appendOutput("----------------------------------------\n");
+    }
+
+    public void startBatchAnalysis(int totalFunctions) {
+        clearOutput();
+        appendOutput("Starting batch analysis of " + totalFunctions + " functions...\n");
+        appendOutput("This may take several minutes. Progress will be shown as functions are processed.\n");
+        appendOutput("----------------------------------------\n\n");
+        
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setValue(0);
+            progressBar.setString("Starting batch analysis...");
+            progressBar.setVisible(true);
+            summaryArea.setText(String.format("Processing 0/%d functions", totalFunctions));
+        });
+    }
+
+    public void updateBatchProgress(int completed, int total) {
+        SwingUtilities.invokeLater(() -> {
+            int percentage = (int)((completed * 100.0) / total);
+            progressBar.setValue(percentage);
+            progressBar.setString(String.format("Processing %d/%d functions (%d%%)", 
+                completed, total, percentage));
+            summaryArea.setText(String.format("Batch Operation Progress\nCompleted: %d/%d functions\nProgress: %.1f%%", 
+                completed, total, (completed * 100.0) / total));
+        });
     }
 
     public void startRenaming(String functionName) {

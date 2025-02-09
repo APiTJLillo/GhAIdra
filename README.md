@@ -4,19 +4,55 @@ A Ghidra plugin that uses Azure OpenAI services to analyze and improve function 
 
 ## Features
 
+### Core Features
 - Function Analysis: Get detailed explanations of function behavior and purpose
 - Smart Renaming: Get AI-powered suggestions for function and variable names
+- PCODE Simulation: Simulate function execution using Ghidra's PCODE system
+
+### Analysis Features
 - Multiple Model Support: 
   - Azure OpenAI
   - Azure DeepSeek
 - Recursive Analysis: Option to analyze called functions recursively
-- Configurable Settings: Temperature, max tokens, and model selection
-- Project Context Awareness:
-  - Define application-specific context for more accurate analysis
-  - Describe frameworks, engines, and architecture patterns
-  - Custom terminology dictionary for domain-specific terms
-  - Document common code patterns and conventions
-  - Function call context shows how functions are used
+- Similar Function Identification: Find and rename functions with similar patterns
+- Progress Tracking: Visual feedback for long-running operations
+- Batch Processing: Analyze or rename multiple functions at once
+
+### UI Improvements
+- Side-by-side Analysis View:
+  - Analysis options panel on the left
+  - Output display on the right
+  - Progress tracking with visual indicators
+- Tabbed Interface:
+  - Analysis tab for LLM-based analysis
+  - Simulation tab for PCODE execution
+  - Easy switching between modes
+- Progress Feedback:
+  - Progress bar for batch operations
+  - Detailed status updates
+  - Clear operation state indicators
+
+### Project Context Features
+- Define application-specific context for more accurate analysis:
+  - Technology stack and frameworks
+  - Architecture patterns
+  - Common code patterns
+  - Domain-specific terminology
+- Context-aware analysis:
+  - Uses project context for better understanding
+  - Shows function relationships
+  - Identifies pattern matches
+
+### Operation Controls
+- Operation State Management:
+  - Clear status indicators
+  - Operation progress tracking
+  - Batch operation support
+- Configuration Options:
+  - Model selection
+  - Temperature and token settings
+  - Analysis depth control
+  - Simulation parameters
 
 ## Prerequisites
 
@@ -61,71 +97,87 @@ This will create: `dist/ghidra_11.2.1_PUBLIC_YYYYMMDD_ghidra-azure-plugin.zip`
 
 ## Usage
 
+### Basic Operations
 1. Open a program in Ghidra
 2. Go to Window > Azure AI Assistant
-3. Position your cursor within a function you want to analyze
-4. Use the available actions:
-   - Analyze Function: Get detailed analysis of function purpose and behavior
-   - Analyze All Functions: Process all functions in the program
-   - Rename Function: Get a suggested name that better describes the function's purpose
-   - Rename Function & Variables: Get suggestions for both function and variable names
+3. Position your cursor within a function
+4. Choose an operation:
+   - Analyze Function: Get detailed analysis
+   - Analyze All Functions: Process entire program
+   - Rename Function: Get name suggestions
+   - Rename Function & Variables: Full rename suggestions
+   - Simulate Function: Run PCODE simulation
 
-Configuration options:
-- Enable Recursive Analysis: Also analyze functions called by the current function
-- Enable Recursive Renaming: Suggest renames for called functions as well
-- Project Context Settings:
-  - Project Name and Type: Identify the application being analyzed
-  - Description: Detail the application's technology stack and architecture
-  - Common Patterns: Document recurring code patterns (e.g., "Lua calls wrapped in event handlers")
-  - Domain Terminology: Define technical terms (e.g., "LuaPlus", "Gamebryo")
-  - Contextual Hints: Add implementation details (e.g., "Network packets use 2-byte headers")
+### Configuration Options
+- Analysis Settings:
+  - Enable Recursive Analysis
+  - Enable Recursive Renaming
+  - Auto-rename Similar Functions
+  - Set Analysis Depth
+- Project Context:
+  - Project Name/Type
+  - Technology Stack
+  - Architecture Patterns
+  - Domain Terms
+  - Code Patterns
 
-Examples:
+### Example Project Context Setup
 ```
 Project Description:
-Ultima Online Stygian Abyss client
-Uses Gamebryo engine for 3D rendering
-Uses LuaPlus for game scripting
-Lua calls are translated to C++ using events
+Modern game client application
+Uses Gamebryo engine and LuaPlus
+Event-driven architecture with custom networking
 
 Common Patterns:
-- Lua function calls wrapped in event handlers
-- UI elements created through XML templates
-- Network packets follow standard header format
+- Event handler registration
+- Network packet processing
+- UI widget initialization
+- Resource management
 
 Domain Terms:
-- Gamebryo: 3D game engine providing rendering and physics
-- LuaPlus: Extended Lua scripting engine for game logic
+- Gamebryo: 3D game engine
+- LuaPlus: Scripting system
+- PacketHandler: Network message processor
 
 Contextual Hints:
-- Network Protocol: Custom packet format with 2-byte headers
-- Script Integration: Lua functions map to C++ event handlers
+- Network packets use custom headers
+- UI follows MVC pattern
+- Resources loaded asynchronously
 ```
+
+### Simulation Usage
+1. Switch to Simulation tab
+2. Configure parameters:
+   - Input values
+   - Memory state
+   - Execution limits
+3. Run simulation
+4. Review results in output panel
 
 ## Troubleshooting
 
 ### Build Issues
-
-If you see `GHIDRA_INSTALL_DIR is not defined!`:
-1. Set the environment variable:
+If GHIDRA_INSTALL_DIR is not defined:
 ```bash
 export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.2.1
-```
-2. Or specify it when running gradle:
-```bash
+# or
 GHIDRA_INSTALL_DIR=/path/to/ghidra_11.2.1 ./gradlew distributeExtension
 ```
 
-### Runtime Issues
-
-If you get authorization errors ("401: Unauthorized"):
-1. Verify your Azure OpenAI endpoint URL:
-   - Must include resource name and deployment name
-   - Example: `https://your-resource.openai.azure.com/openai/deployments/APi-gpt-4o`
-   - The plugin will automatically handle adding chat/completions and api-version
-2. Make sure you're using the correct API key from Azure
-3. Check that your model deployment is active and accessible
-4. Try the endpoint URL in Postman to verify it works
+### Common Issues
+- Authentication Errors (401):
+  1. Verify endpoint URL format
+  2. Check API key
+  3. Validate model deployment
+  4. Test in Postman
+- UI Responsiveness:
+  1. Wait for operations to complete
+  2. Use Clear Output to reset
+  3. Process large programs in batches
+- Analysis Quality:
+  1. Ensure project context is set
+  2. Configure appropriate model
+  3. Adjust temperature settings
 
 ## License
 

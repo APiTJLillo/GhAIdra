@@ -7,13 +7,31 @@ Completed:
   ✓ Analyze/rename functions at the deepest level first
   ✓ Allow for different models to be used at shallower levels if we want smarter models on more important functions
   ✓ Similar to the python script, rename all functions with the same instructions as the current one
+✓ Improved UI Layout and Operation Handling
+  ✓ Side-by-side layout for better screen real estate usage
+  ✓ Added progress tracking for batch operations
+  ✓ Added visual feedback with progress bar
+  ✓ Improved operation state management
+  ✓ Better error handling and user feedback
+✓ New Simulation Tab
+  ✓ Added dedicated simulation interface
+  ✓ Integrated PCODE simulation capabilities
+  ✓ Added simulation configuration options
 
 In Progress:
 □ Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
+  ▣ Basic simulation framework added
+  ▣ UI integration complete
+  □ AI input suggestion system
+  □ Results visualization
 □ Add a stop button that can stop any operation in progress
 □ Persist values in the Analysis Options section across sessions
 
 New Features To Add:
+□ Visual tree for recursive function renaming
+  - Use tree to show progress of renaming
+  - Use the built in function map to show this progress
+
 □ Project Chat Interface
   - Natural language queries about the project
   - Search functions by description or purpose

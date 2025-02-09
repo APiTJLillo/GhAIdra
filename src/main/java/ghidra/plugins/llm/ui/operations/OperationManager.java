@@ -9,6 +9,9 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.util.Msg;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Manages operation state and coordinates between UI components.
@@ -92,18 +95,21 @@ public class OperationManager {
                         return null;
                     });
             } else {
-                // Get all functions in the program
+                // Get all functions and count them
                 Program program = currentFunction.getProgram();
-                outputPanel.clearOutput();
-                outputPanel.appendOutput("Starting analysis of all functions...\n");
+                List<Function> allFunctions = new ArrayList<>();
+                program.getFunctionManager().getFunctions(true).forEach(allFunctions::add);
                 
-                // Create list of futures and track completion
-                java.util.List<java.util.concurrent.CompletableFuture<Void>> futures = new java.util.ArrayList<>();
+                // Start batch analysis with total count
+                outputPanel.startBatchAnalysis(allFunctions.size());
+                AtomicInteger completed = new AtomicInteger(0);
+                List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
                 
-                program.getFunctionManager().getFunctions(true).forEach(function -> {
+                allFunctions.forEach(function -> {
                     futures.add(analysisManager.analyzeFunction(function, 0)
                         .thenAccept(result -> {
                             outputPanel.displayAnalysisResult(result, function.getName());
+                            outputPanel.updateBatchProgress(completed.incrementAndGet(), allFunctions.size());
                         })
                         .exceptionally(e -> {
                             handleAnalysisError("Error analyzing " + function.getName() + ": " + e.getMessage());
@@ -136,24 +142,70 @@ public class OperationManager {
                 return;
             }
 
-            outputPanel.startRenaming(currentFunction.getName());
-            analysisManager.suggestRenames(currentFunction, 0)
-                .thenAccept(result -> {
-                    if (result != null) {
-                        outputPanel.appendOutput("Suggested function name: " + result.getFunctionName() + "\n\n");
-                        if (result.getVariableNames() != null) {
-                            outputPanel.appendOutput("Suggested variable names:\n");
-                            result.getVariableNames().forEach((oldName, newName) -> 
-                                outputPanel.appendOutput(String.format("  %s → %s\n", oldName, newName))
-                            );
+            if (!renameAll) {
+                // Single function rename
+                outputPanel.startRenaming(currentFunction.getName());
+                analysisManager.suggestRenames(currentFunction, 0)
+                    .thenAccept(result -> {
+                        if (result != null) {
+                            outputPanel.appendOutput("Suggested function name: " + result.getFunctionName() + "\n\n");
+                            if (result.getVariableNames() != null) {
+                                outputPanel.appendOutput("Suggested variable names:\n");
+                                result.getVariableNames().forEach((oldName, newName) -> 
+                                    outputPanel.appendOutput(String.format("  %s → %s\n", oldName, newName))
+                                );
+                            }
                         }
-                    }
-                    handleAnalysisComplete();
-                })
-                .exceptionally(e -> {
-                    handleAnalysisError(e.getMessage());
-                    return null;
+                        handleAnalysisComplete();
+                    })
+                    .exceptionally(e -> {
+                        handleAnalysisError(e.getMessage());
+                        return null;
+                    });
+            } else {
+                // Get all functions and count them
+                Program program = currentFunction.getProgram();
+                List<Function> allFunctions = new ArrayList<>();
+                program.getFunctionManager().getFunctions(true).forEach(allFunctions::add);
+                
+                // Start batch rename with total count
+                outputPanel.startBatchAnalysis(allFunctions.size());
+                AtomicInteger completed = new AtomicInteger(0);
+                List<java.util.concurrent.CompletableFuture<Void>> futures = new ArrayList<>();
+                
+                allFunctions.forEach(function -> {
+                    futures.add(analysisManager.suggestRenames(function, 0)
+                        .thenAccept(result -> {
+                            if (result != null) {
+                                outputPanel.appendOutput("\nFunction: " + function.getName() + "\n");
+                                outputPanel.appendOutput("Suggested name: " + result.getFunctionName() + "\n");
+                                if (result.getVariableNames() != null && !result.getVariableNames().isEmpty()) {
+                                    outputPanel.appendOutput("Variable suggestions:\n");
+                                    result.getVariableNames().forEach((oldName, newName) -> 
+                                        outputPanel.appendOutput(String.format("  %s → %s\n", oldName, newName))
+                                    );
+                                }
+                                outputPanel.appendOutput("----------------------------------------\n");
+                            }
+                            outputPanel.updateBatchProgress(completed.incrementAndGet(), allFunctions.size());
+                        })
+                        .exceptionally(e -> {
+                            handleAnalysisError("Error analyzing " + function.getName() + ": " + e.getMessage());
+                            return null;
+                        }));
                 });
+                
+                // Wait for all rename operations to complete
+                java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                    .thenRun(() -> {
+                        outputPanel.appendOutput("\nBatch rename analysis complete.\n");
+                        handleAnalysisComplete();
+                    })
+                    .exceptionally(e -> {
+                        handleAnalysisError("Error during batch rename: " + e.getMessage());
+                        return null;
+                    });
+            }
         } catch (Exception e) {
             outputPanel.displayError("Failed to start renaming: " + e.getMessage());
             finishOperation();
