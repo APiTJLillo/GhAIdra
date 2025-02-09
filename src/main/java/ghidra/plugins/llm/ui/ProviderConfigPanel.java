@@ -2,6 +2,7 @@ package ghidra.plugins.llm.ui;
 
 import javax.swing.*;
 import java.awt.*;
+import javax.swing.event.DocumentListener;
 import ghidra.plugins.llm.LLMConfig;
 
 public abstract class ProviderConfigPanel extends JPanel {
@@ -52,7 +53,19 @@ public abstract class ProviderConfigPanel extends JPanel {
         return nameField.getText().trim();
     }
 
+    public void setProviderName(String name) {
+        nameField.setText(name);
+    }
+
+    public void addNameChangeListener(DocumentListener listener) {
+        nameField.getDocument().addDocumentListener(listener);
+    }
+
     public boolean isEnabled() {
         return enabledCheckbox.isSelected();
+    }
+
+    public void setEnabled(boolean enabled) {
+        enabledCheckbox.setSelected(enabled);
     }
 }

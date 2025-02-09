@@ -96,14 +96,28 @@ public class AnalysisOutputPanel extends JPanel {
             }
             appendOutput("\n----------------------------------------\n");
             appendOutput("Analysis complete for: " + functionName + "\n");
+            
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setValue(100);
+                progressBar.setString("Analysis complete");
+            });
         } else {
             appendOutput("Error: Failed to analyze function\n");
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setValue(0);
+                progressBar.setString("Analysis failed");
+            });
         }
     }
 
     public void displayError(String errorMessage) {
         appendOutput("\nError: " + errorMessage + "\n");
         Msg.error(this, errorMessage);
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setValue(0);
+            progressBar.setString("Error occurred");
+            progressBar.setVisible(true);
+        });
     }
 
     public void clearOutput() {
@@ -122,6 +136,13 @@ public class AnalysisOutputPanel extends JPanel {
         appendOutput("Analyzing function: " + functionName + "\n");
         appendOutput("This may take a few minutes. You'll see the response stream as it arrives.\n");
         appendOutput("----------------------------------------\n");
+        
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setValue(0);
+            progressBar.setString("Analyzing " + functionName + "...");
+            progressBar.setVisible(true);
+            summaryArea.setText("Analyzing function: " + functionName);
+        });
     }
 
     public void startBatchAnalysis(int totalFunctions) {
@@ -153,5 +174,12 @@ public class AnalysisOutputPanel extends JPanel {
         clearOutput();
         appendOutput("Generating rename suggestions for: " + functionName + "\n");
         appendOutput("----------------------------------------\n");
+        
+        SwingUtilities.invokeLater(() -> {
+            progressBar.setValue(0);
+            progressBar.setString("Generating suggestions for " + functionName + "...");
+            progressBar.setVisible(true);
+            summaryArea.setText("Processing function: " + functionName);
+        });
     }
 }

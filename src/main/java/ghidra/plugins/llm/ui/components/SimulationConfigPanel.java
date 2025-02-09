@@ -6,9 +6,12 @@ import ghidra.framework.plugintool.Plugin;
 import java.util.Map;
 import java.util.HashMap;
 import ghidra.plugins.llm.ui.AbstractPluginComponent;
+import ghidra.program.model.listing.Function;
+import ghidra.plugins.llm.PCODESimulator.SimulationResult;
+import ghidra.plugins.llm.AIInputSuggester;
 
 /**
- * Configuration panel for PCODE simulation settings.
+ * Configuration panel for PCODE simulation settings and function parameters.
  */
 public class SimulationConfigPanel extends JPanel {
     private final JSpinner maxInstructionsSpinner;
@@ -17,15 +20,46 @@ public class SimulationConfigPanel extends JPanel {
     private final JCheckBox captureMemoryCheckbox;
     private final JSpinner memoryCaptureSize;
     private final ConfigChangeListener listener;
+    private final ParameterInputPanel parameterPanel;
+    private final SimulationResultsPanel resultsPanel;
+    private AIInputSuggester inputSuggester;
 
     public interface ConfigChangeListener {
         void onConfigurationChanged(Map<String, Object> newConfig);
+        void onInputsChanged(Map<String, Long> inputs);
+        void onSuggestInputs(Function function);
     }
 
-    public SimulationConfigPanel(ConfigChangeListener listener) {
+    public SimulationConfigPanel(ConfigChangeListener listener, AIInputSuggester inputSuggester) {
         this.listener = listener;
+        this.inputSuggester = inputSuggester;
+        
         setLayout(new BorderLayout());
         
+        // Create parameter and results panels
+        parameterPanel = new ParameterInputPanel(new ParameterInputPanel.SuggestionListener() {
+            @Override
+            public void onSuggestInputs(Function function) {
+                if (listener != null) {
+                    listener.onSuggestInputs(function);
+                }
+            }
+            
+            @Override
+            public void onInputsChanged(Map<String, Long> inputs) {
+                if (listener != null) {
+                    listener.onInputsChanged(inputs);
+                }
+            }
+        });
+        
+        resultsPanel = new SimulationResultsPanel();
+        
+        // Split pane for parameters and results
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, parameterPanel, resultsPanel);
+        splitPane.setResizeWeight(0.4); // Give 40% to parameter panel
+        
+        // Create configuration panel
         JPanel mainPanel = new JPanel();
         mainPanel.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -68,7 +102,15 @@ public class SimulationConfigPanel extends JPanel {
         memoryCaptureSize = new JSpinner(memorySizeModel);
         mainPanel.add(memoryCaptureSize, gbc);
         
-        add(mainPanel, BorderLayout.CENTER);
+        // Create top panel with config options
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(mainPanel, BorderLayout.NORTH);
+        
+        // Add all components to main layout
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.add(topPanel, BorderLayout.NORTH);
+        contentPanel.add(splitPane, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
         
         // Add change listeners
         maxInstructionsSpinner.addChangeListener(e -> notifyConfigChanged());
@@ -110,5 +152,41 @@ public class SimulationConfigPanel extends JPanel {
         if (config.containsKey("memoryCaptureSize")) {
             memoryCaptureSize.setValue(config.get("memoryCaptureSize"));
         }
+    }
+
+    /**
+     * Update the current function being analyzed.
+     */
+    public void setFunction(Function function) {
+        parameterPanel.setFunction(function);
+        resultsPanel.clearResults();
+    }
+
+    /**
+     * Update suggested input values.
+     */
+    public void setSuggestedInputs(Map<String, Long> suggestions) {
+        parameterPanel.setSuggestedInputs(suggestions);
+    }
+
+    /**
+     * Get current parameter input values.
+     */
+    public Map<String, Long> getInputValues() {
+        return parameterPanel.getInputValues();
+    }
+
+    /**
+     * Display simulation results.
+     */
+    public void showResults(SimulationResult result) {
+        resultsPanel.showResults(result);
+    }
+
+    /**
+     * Clear all results.
+     */
+    public void clearResults() {
+        resultsPanel.clearResults();
     }
 }

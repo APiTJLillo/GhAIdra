@@ -7,15 +7,19 @@ A Ghidra plugin that uses Azure OpenAI services to analyze and improve function 
 ### Core Features
 - Function Analysis: Get detailed explanations of function behavior and purpose
 - Smart Renaming: Get AI-powered suggestions for function and variable names
-- PCODE Simulation: Simulate function execution using Ghidra's PCODE system
+- PCODE Simulation: Advanced function simulation with AI-powered input suggestions
+- Persistent Settings: Analysis options and configurations persist across sessions
 
 ### Analysis Features
 - Multiple Model Support: 
   - Azure OpenAI
   - Azure DeepSeek
+  - Anthropic
+  - Ollama
 - Recursive Analysis: Option to analyze called functions recursively
-- Similar Function Identification: Find and rename functions with similar patterns
+- Similar Function Handling: Auto-rename similar functions when found
 - Progress Tracking: Visual feedback for long-running operations
+- Operation Control: Stop button for canceling operations in progress
 - Batch Processing: Analyze or rename multiple functions at once
 
 ### UI Improvements
@@ -48,11 +52,13 @@ A Ghidra plugin that uses Azure OpenAI services to analyze and improve function 
   - Clear status indicators
   - Operation progress tracking
   - Batch operation support
+  - Operation cancellation via stop button
 - Configuration Options:
   - Model selection
   - Temperature and token settings
   - Analysis depth control
   - Simulation parameters
+  - Persistent analysis options
 
 ## Prerequisites
 
@@ -88,11 +94,11 @@ This will create: `dist/ghidra_11.2.1_PUBLIC_YYYYMMDD_ghidra-azure-plugin.zip`
 2. Click "Configure LLM" button
 3. Add and configure your providers:
    
-   For both providers:
+   For Azure OpenAI and Anthropic providers:
    - Endpoint URL format: `https://{resource-name}.openai.azure.com/openai/deployments/{deployment-name}`
      - Example: `https://your-resource.openai.azure.com/openai/deployments/gpt-4o`
      - Do NOT include `/chat/completions` or `?api-version=` parameters
-   - API Key: Your Azure OpenAI API key (header should be "api-key")
+   - API Key: Your Azure OpenAI or Anthropic API key (header should be "api-key")
    - Configure model names and other settings in the dialog
 
 ## Usage
@@ -147,12 +153,28 @@ Contextual Hints:
 
 ### Simulation Usage
 1. Switch to Simulation tab
-2. Configure parameters:
-   - Input values
-   - Memory state
-   - Execution limits
-3. Run simulation
-4. Review results in output panel
+2. Select a function to simulate
+3. Configure simulation parameters:
+   - Maximum instructions to execute
+   - Enable/disable execution trace
+   - Configure register state capture
+   - Set memory capture options
+   - Adjust memory capture size
+4. Use AI-powered input suggestion:
+   - Click "Suggest Inputs" to get AI-generated parameter values
+   - AI analyzes function code and suggests appropriate test inputs
+   - Refine suggestions based on previous simulation results
+5. Run simulation and view detailed results:
+   - Execution trace with instruction-by-instruction details
+   - Register state changes throughout execution
+   - Memory state changes for pointer parameters
+   - Final return values and output parameters
+   - Error detection and handling feedback
+6. Interactive results navigation:
+   - Switch between execution trace and register states
+   - View detailed memory dumps for pointer parameters
+   - Track error states and simulation progress
+   - Get refined input suggestions for better code coverage
 
 ## Troubleshooting
 

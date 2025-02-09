@@ -4,7 +4,11 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.plugins.llm.PCODESimulator;
 import ghidra.plugins.llm.PCODESimulator.SimulationResult;
+import ghidra.plugins.llm.ui.components.SimulationConfigPanel;
+import ghidra.plugins.llm.AIInputSuggester;
+import ghidra.plugins.llm.LLMProvider;
 import ghidra.util.task.TaskMonitor;
+import ghidra.app.decompiler.DecompInterface;
 import javax.swing.*;
 import java.util.Map;
 import java.awt.*;
@@ -16,116 +20,150 @@ import ghidra.util.Msg;
 public class SimulationOperation {
     private final Program program;
     private final PCODESimulator simulator;
+    private final AIInputSuggester inputSuggester;
+    private final SimulationConfigPanel configPanel;
+    private final JDialog dialog;
+    private Function currentFunction;
     
-    public SimulationOperation(Program program) {
+    public SimulationOperation(Program program, LLMProvider llmProvider) {
         this.program = program;
         this.simulator = new PCODESimulator(program);
+        
+        // Initialize AI input suggester with decompiler
+        DecompInterface decompiler = new DecompInterface();
+        decompiler.openProgram(program);
+        this.inputSuggester = new AIInputSuggester(llmProvider, decompiler);
+        
+        // Create config panel
+        this.configPanel = new SimulationConfigPanel(new SimulationConfigPanel.ConfigChangeListener() {
+            @Override
+            public void onConfigurationChanged(Map<String, Object> newConfig) {
+                // Config changes are stored in the panel until simulation is run
+            }
+            
+            @Override
+            public void onInputsChanged(Map<String, Long> inputs) {
+                // Input changes are stored in the panel until simulation is run
+            }
+            
+            @Override
+            public void onSuggestInputs(Function function) {
+                suggestInputs(function);
+            }
+        }, inputSuggester);
+        
+        // Create dialog
+        dialog = new JDialog();
+        dialog.setTitle("Function Simulation");
+        dialog.setLayout(new BorderLayout());
+        
+        // Add config panel
+        dialog.add(configPanel, BorderLayout.CENTER);
+        
+        // Add buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton runButton = new JButton("Run Simulation");
+        JButton closeButton = new JButton("Close");
+        
+        runButton.addActionListener(e -> runSimulation());
+        closeButton.addActionListener(e -> dialog.setVisible(false));
+        
+        buttonPanel.add(runButton);
+        buttonPanel.add(closeButton);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.setSize(800, 600);
+        dialog.setLocationRelativeTo(null);
     }
     
-    public void executeSimulation(Function function, Map<String, Object> config) {
-        // Create results dialog
-        JDialog resultsDialog = new JDialog();
-        resultsDialog.setTitle("Simulation Results - " + function.getName());
-        resultsDialog.setLayout(new BorderLayout());
-        resultsDialog.setSize(800, 600);
-        resultsDialog.setLocationRelativeTo(null);
+    /**
+     * Show the simulation dialog for a function.
+     */
+    public void showDialog(Function function) {
+        this.currentFunction = function;
+        dialog.setTitle("Function Simulation - " + function.getName());
+        configPanel.setFunction(function);
+        dialog.setVisible(true);
+    }
+    
+    /**
+     * Generate input suggestions using AI.
+     */
+    private void suggestInputs(Function function) {
+        SwingWorker<Map<String, Long>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Map<String, Long> doInBackground() throws Exception {
+                return inputSuggester.suggestInputs(function);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    Map<String, Long> suggestions = get();
+                    configPanel.setSuggestedInputs(suggestions);
+                } catch (Exception e) {
+                    Msg.error(this, "Failed to generate input suggestions: " + e.getMessage());
+                }
+            }
+        };
+        worker.execute();
+    }
+    
+    /**
+     * Run the simulation with current configuration.
+     */
+    private void runSimulation() {
+        if (currentFunction == null) {
+            return;
+        }
         
-        // Create results display components
-        JTextArea traceOutput = new JTextArea();
-        traceOutput.setEditable(false);
-        traceOutput.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        // Get current configuration
+        Map<String, Object> config = configPanel.getConfiguration();
+        Map<String, Long> inputs = configPanel.getInputValues();
         
-        JScrollPane scrollPane = new JScrollPane(traceOutput);
-        resultsDialog.add(scrollPane, BorderLayout.CENTER);
-        
-        // Add status panel at bottom
-        JPanel statusPanel = new JPanel(new BorderLayout());
-        JLabel statusLabel = new JLabel("Running simulation...");
-        statusPanel.add(statusLabel, BorderLayout.WEST);
-        resultsDialog.add(statusPanel, BorderLayout.SOUTH);
-        
-        // Show dialog
-        resultsDialog.setVisible(true);
+        // Clear previous results
+        configPanel.clearResults();
         
         // Run simulation in background
         SwingWorker<SimulationResult, Void> worker = new SwingWorker<>() {
             @Override
             protected SimulationResult doInBackground() throws Exception {
-                // Convert configuration to simulator inputs
-                Map<String, Long> inputs = generateInputs(function);
-                return simulator.simulate(function, inputs);
+                // Create simulation config from panel settings
+                PCODESimulator.SimulationConfig simConfig = new PCODESimulator.SimulationConfig(
+                    (Integer)config.get("maxInstructions"),
+                    (Boolean)config.get("traceMode"),
+                    (Boolean)config.get("captureRegisters"),
+                    (Boolean)config.get("captureMemory"),
+                    (Integer)config.get("memoryCaptureSize")
+                );
+                
+                return simulator.simulate(currentFunction, inputs, simConfig);
             }
             
             @Override
             protected void done() {
                 try {
                     SimulationResult result = get();
-                    displayResults(result, traceOutput);
-                    statusLabel.setText("Simulation complete");
+                    configPanel.showResults(result);
+                    
+                    // If simulation had errors, suggest refined inputs
+                    if (result.hasErrors()) {
+                        Map<String, Long> refinedInputs = inputSuggester.refineInputs(
+                            currentFunction, result, inputs);
+                        configPanel.setSuggestedInputs(refinedInputs);
+                    }
                 } catch (Exception e) {
                     Msg.error(this, "Simulation failed: " + e.getMessage());
-                    statusLabel.setText("Simulation failed: " + e.getMessage());
                 }
             }
         };
-        
         worker.execute();
-    }
-    
-    private Map<String, Long> generateInputs(Function function) {
-        // TODO: Use LLM to suggest appropriate input values based on function analysis
-        return Map.of(); // For now return empty map
-    }
-    
-    private void displayResults(SimulationResult result, JTextArea output) {
-        StringBuilder sb = new StringBuilder();
-        
-        // Display any errors
-        if (result.hasErrors()) {
-            sb.append("=== ERRORS ===\n");
-            for (String error : result.getErrors()) {
-                sb.append(error).append("\n");
-            }
-            sb.append("\n");
-        }
-        
-        // Display execution trace
-        sb.append("=== EXECUTION TRACE ===\n");
-        for (PCODESimulator.TraceEntry entry : result.getExecutionTrace()) {
-            sb.append(String.format("%s: %s\n", entry.getAddress(), entry.getInstruction()));
-            if (!entry.getRegisterState().isEmpty()) {
-                sb.append("  Registers:\n");
-                entry.getRegisterState().forEach((reg, value) -> 
-                    sb.append(String.format("    %s = 0x%x\n", reg, value)));
-            }
-            sb.append("\n");
-        }
-        
-        // Display return value if any
-        if (result.getReturnValue() != null) {
-            sb.append(String.format("\nReturn Value: 0x%x\n", result.getReturnValue()));
-        }
-        
-        // Display output parameters
-        if (!result.getOutputParameters().isEmpty()) {
-            sb.append("\n=== OUTPUT PARAMETERS ===\n");
-            result.getOutputParameters().forEach((name, value) -> {
-                sb.append(name).append(":\n");
-                sb.append("  Raw bytes: ");
-                for (byte b : value) {
-                    sb.append(String.format("%02x ", b));
-                }
-                sb.append("\n");
-            });
-        }
-        
-        output.setText(sb.toString());
-        output.setCaretPosition(0);
     }
     
     public void dispose() {
         if (simulator != null) {
             simulator.dispose();
         }
+        dialog.dispose();
     }
 }

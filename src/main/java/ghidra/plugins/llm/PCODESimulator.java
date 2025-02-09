@@ -44,7 +44,24 @@ public class PCODESimulator {
      * @param inputs Map of parameter names to their suggested values
      * @return SimulationResult containing the execution trace and outputs
      */
-    public SimulationResult simulate(Function function, Map<String, Long> inputs) {
+    public static class SimulationConfig {
+        public final int maxInstructions;
+        public final boolean traceMode;
+        public final boolean captureRegisters;
+        public final boolean captureMemory;
+        public final int memoryCaptureSize;
+        
+        public SimulationConfig(int maxInstructions, boolean traceMode, boolean captureRegisters,
+                              boolean captureMemory, int memoryCaptureSize) {
+            this.maxInstructions = maxInstructions;
+            this.traceMode = traceMode;
+            this.captureRegisters = captureRegisters;
+            this.captureMemory = captureMemory;
+            this.memoryCaptureSize = memoryCaptureSize;
+        }
+    }
+    
+    public SimulationResult simulate(Function function, Map<String, Long> inputs, SimulationConfig config) {
         SimulationResult result = new SimulationResult();
         
         try {
@@ -58,10 +75,9 @@ public class PCODESimulator {
             setupFunctionParameters(function, inputs);
 
             // Execute until return or timeout
-            long maxInstructions = 10000; // Prevent infinite loops
             long instructionCount = 0;
             
-            while (instructionCount < maxInstructions) {
+            while (instructionCount < config.maxInstructions) {
                 Address currentAddress = emulator.getExecutionAddress();
                 
                 // Check if we've returned from the function
@@ -76,8 +92,10 @@ public class PCODESimulator {
                     break;
                 }
 
-                // Record execution trace
-                recordTrace(result, currentAddress);
+                // Record execution trace if enabled
+                if (config.traceMode) {
+                    recordTrace(result, currentAddress, config);
+                }
                 
                 instructionCount++;
             }
@@ -119,16 +137,19 @@ public class PCODESimulator {
         }
     }
 
-    private void recordTrace(SimulationResult result, Address address) {
+    private void recordTrace(SimulationResult result, Address address, SimulationConfig config) {
         try {
             // Get instruction at current address
             var instruction = program.getListing().getInstructionAt(address);
             if (instruction != null) {
-                // Record instruction and register states
+                // Record instruction and optionally register states
+                Map<String, Long> registerState = config.captureRegisters ? 
+                    getCurrentRegisterState() : Map.of();
+                    
                 result.addTraceEntry(new TraceEntry(
                     address,
                     instruction.toString(),
-                    getCurrentRegisterState()
+                    registerState
                 ));
             }
         } catch (Exception e) {

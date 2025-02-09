@@ -68,6 +68,9 @@ public class ConfigManager {
             }
         }
         
+        // Add Ollama provider
+        foundProviders.add("ollama");
+        
         // Load each provider's properties
         for (String providerName : foundProviders) {
             Properties providerProps = new Properties();

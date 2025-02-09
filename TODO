@@ -1,12 +1,14 @@
-Completed:
+✓ COMPLETED FEATURES ✓
+
+Core Features:
 ✓ Make the tool remember selections of checkboxes for recursive analysis, renaming, and auto rename of similar functions
-✓ Add the ability to provide the model context around the currently open project so it knows what it should consider looking for
+✓ Add the ability to provide the model context around the currently open project
 ✓ Get recursion working
   ✓ Recursively build a list of all functions
   ✓ Ensure we ignore functions already in the list
   ✓ Analyze/rename functions at the deepest level first
-  ✓ Allow for different models to be used at shallower levels if we want smarter models on more important functions
-  ✓ Similar to the python script, rename all functions with the same instructions as the current one
+  ✓ Allow for different models to be used at shallower levels
+  ✓ Similar to the python script, rename all functions with the same instructions
 ✓ Improved UI Layout and Operation Handling
   ✓ Side-by-side layout for better screen real estate usage
   ✓ Added progress tracking for batch operations
@@ -19,35 +21,48 @@ Completed:
   ✓ Added simulation configuration options
 ✓ Add a stop button that can stop any operation in progress
 ✓ Persist values in the Analysis Options section across sessions
-In Progress:
-□ Add function simulation using Ghidra pcode, use AI to suggest inputs to the function(s) and run them
-  ▣ Basic simulation framework added
-  ▣ UI integration complete
-  □ AI input suggestion system
-  □ Results visualization
+✓ Function simulation using Ghidra pcode with AI-powered input suggestions
+  ✓ Basic simulation framework
+  ✓ UI integration
+  ✓ AI input suggestion system
+  ✓ Results visualization
+✓ Improved Configuration System
+  ✓ Modular configuration UI components
+  ✓ Centralized provider configuration management
+  ✓ OpenAI provider direct integration
+  ✓ Anthropic provider support
+  ✓ Enhanced configuration persistence
 
-New Features To Add:
-□ Add tools for the LLM to interact with the application, allowing the LLM to use the tools
+□ PLANNED FEATURES □
+
+Provider Support:
+□ Complete remaining LLM providers implementation
+  ✓ OpenAI direct integration
+  ✓ Anthropic provider support
+  ✓ Ollama provider support
+  □ Unified provider management and switching
+
+Analysis Tools:
+□ Add tools for LLM interaction with application
   - Tools for searching strings, patterns, etc
   - Tools for updating function and variable names
   - Tools for updating types
 
-□ Provide a way to chat with the application, allowing the LLM to use the tools to find the answer
-
+Project Understanding:
 □ Visual tree for recursive function renaming
   - Use tree to show progress of renaming
-  - Use the built in function map to show this progress
-
+  - Use built-in function map to show progress
 □ Project Chat Interface
   - Natural language queries about the project
   - Search functions by description or purpose
   - Find similar functions based on behavior
   - Query strings and references
-  - Ask about common patterns found in the codebase
+  - Ask about common patterns found in codebase
 
+Advanced Features:
 □ Advanced Search Capabilities
-  - Search for functions by their behavior
-  - Find all functions that use specific APIs
+  - Search for functions by behavior
+  - Find all functions using specific APIs
   - Locate similar code patterns across functions
   - Search for specific security patterns or vulnerabilities
 
@@ -63,6 +78,7 @@ New Features To Add:
   - Find protocol implementations
   - Map high-level features to code implementations
 
+Integration & Documentation:
 □ Integration Features
   - Export analysis results to documentation
   - Generate diagrams of system architecture
@@ -75,18 +91,21 @@ New Features To Add:
   - Map feature implementations across codebase
   - Document API usage patterns
 
+Interactive Features:
 □ Interactive Analysis
   - Ask follow-up questions about functions
   - Request example usage scenarios
   - Get explanations of complex algorithms
   - Query function relationships
 
+Security Features:
 □ Security Analysis
   - Identify potential vulnerabilities
   - Analyze input validation patterns
   - Check for common security issues
   - Review error handling completeness
 
+Configuration:
 □ Custom Analysis Rules
   - Define project-specific analysis rules
   - Create custom naming conventions
